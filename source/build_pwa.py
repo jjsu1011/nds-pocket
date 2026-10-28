@@ -52,7 +52,19 @@ HEAD = """<!doctype html>
 TAIL = """
 <script>
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  // a page that was already controlled and then gets a new worker = a new version was downloaded
+  var hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (hadController && window.__ndspUpdateReady) window.__ndspUpdateReady();
+    hadController = true;
+  });
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      var check = function () { reg.update().catch(function () {}); };
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") check(); });
+      setInterval(check, 30 * 60 * 1000);
+    }).catch(function () {});
+  });
 }
 </script>
 </body>

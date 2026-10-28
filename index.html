@@ -123,7 +123,7 @@ button:focus-visible, label:focus-visible, input:focus-visible + span { outline:
 }
 
 /* ---------- Settings sheet ---------- */
-#settings {
+#settings, .overlay {
   position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center;
   background: color-mix(in srgb, #000 55%, transparent);
 }
@@ -153,6 +153,20 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .layout-pic rect { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.5; }
 .seg input:checked + span .layout-pic rect { stroke: var(--accent); }
 .note { color: var(--muted); font-size: 13px; margin: 0; }
+.version-line { color: var(--muted); font-size: 12px; margin: 18px 0 0; font-variant-numeric: tabular-nums; }
+.changes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.changes li { line-height: 1.45; }
+#whatsnew .sheet fieldset + fieldset, #settings .chip-btn { align-self: flex-start; }
+.update-bar {
+  position: fixed; z-index: 60; left: 50%; transform: translateX(-50%);
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); box-sizing: border-box;
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 999px;
+  padding: 8px 8px 8px 16px; font-size: 14px; color: var(--fg);
+}
+.update-bar button { border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 6px 14px; font-size: 13px; white-space: nowrap; }
+.update-bar.in-game { padding: 6px 14px; font-size: 12px; opacity: 0.9; }
+.update-bar.in-game button { display: none; }
 
 /* ---------- Player ---------- */
 #player { position: fixed; inset: 0; background: #000; z-index: 30; }
@@ -248,6 +262,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 
   <p class="section-label"><span>라이브러리</span><span id="count"></span></p>
   <div id="list" class="list"></div>
+  <p class="version-line" id="versionLine"></p>
 </div>
 
 <div id="settings" hidden>
@@ -263,6 +278,12 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       <legend>화면 배치</legend>
       <div class="seg" id="layoutSeg"></div>
       <p class="note">게임 중에도 상단 <b>배치</b> 버튼으로 바로 바꿀 수 있어.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>앱 정보</legend>
+      <p class="note" id="versionInfo"></p>
+      <button class="chip-btn" id="showChanges" type="button">새로워진 점 보기</button>
     </fieldset>
 
   </div>
@@ -302,6 +323,24 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<div class="update-bar" id="updateBar" hidden role="status">
+  <span id="updateText">새 버전을 받았어</span>
+  <button id="updateApply">지금 적용</button>
+</div>
+
+<div id="whatsnew" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="whatsnewTitle">
+    <div class="sheet-head">
+      <h2 id="whatsnewTitle">새로워진 점</h2>
+      <button class="icon-btn" id="whatsnewClose" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <p class="note" id="whatsnewMeta"></p>
+    <ul class="changes" id="whatsnewList"></ul>
+  </div>
+</div>
 
 
 
@@ -988,13 +1027,88 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     setTimeout(go, 2000);
   });
 
+  // ---------- Version, update notice, what's new ----------
+  const APP_VERSION = "V12";
+  const BUILD_STAMP = "2026-10-28T10:58+09:00"; // ISO time, filled in at build
+  const CHANGES = {
+    V12: [
+      "새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼",
+      "업데이트 후 처음 켜면 이 화면으로 바뀐 점을 보여줘",
+      "목록 화면 아래와 설정에 버전과 업데이트 시각을 표시해"
+    ],
+    V11: [
+      "켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)",
+      "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"
+    ],
+    V10: [
+      "▶▶ 배속 버튼: 1x → 2x → 4x → 최대",
+      "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"
+    ]
+  };
+  function fmtStamp(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "";
+    const h = d.getHours(), m = String(d.getMinutes()).padStart(2, "0");
+    return (d.getMonth() + 1) + "월 " + d.getDate() + "일 " + (h < 12 ? "오전 " : "오후 ") + ((h % 12) || 12) + ":" + m;
+  }
+  const stampText = fmtStamp(BUILD_STAMP);
+  const versionText = APP_VERSION + (stampText ? " · " + stampText + " 업데이트" : "");
+  $("versionLine").textContent = versionText;
+  $("versionInfo").textContent = versionText;
+
+  function showWhatsNew() {
+    $("whatsnewMeta").textContent = versionText;
+    const ul = $("whatsnewList");
+    ul.innerHTML = "";
+    (CHANGES[APP_VERSION] || []).forEach(t => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+    $("settings").hidden = true;
+    $("whatsnew").hidden = false;
+  }
+  $("whatsnewClose").addEventListener("click", () => { $("whatsnew").hidden = true; });
+  $("whatsnew").addEventListener("click", e => { if (e.target.id === "whatsnew") $("whatsnew").hidden = true; });
+  $("showChanges").addEventListener("click", showWhatsNew);
+  // once per version, and not on the very first run
+  (function () {
+    let seen = null;
+    try { seen = localStorage.getItem("ndsp-version"); localStorage.setItem("ndsp-version", APP_VERSION); } catch (e) {}
+    if (seen && seen !== APP_VERSION) setTimeout(showWhatsNew, 400);
+  })();
+
+  // Called by the home-screen app's update checker when a newer version has been downloaded.
+  window.__ndspUpdateReady = function () {
+    const bar = $("updateBar");
+    if (current) {
+      bar.classList.add("in-game");
+      $("updateText").textContent = "새 버전 받음 · 목록으로 나가면 적용돼";
+      bar.hidden = false;
+      setTimeout(() => { bar.hidden = true; }, 6000);
+    } else {
+      bar.classList.remove("in-game");
+      $("updateText").textContent = "새 버전을 받았어";
+      bar.hidden = false;
+    }
+  };
+  $("updateApply").addEventListener("click", () => location.reload());
+
   render();
 })();
 </script>
 
 <script>
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  // a page that was already controlled and then gets a new worker = a new version was downloaded
+  var hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (hadController && window.__ndspUpdateReady) window.__ndspUpdateReady();
+    hadController = true;
+  });
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").then(function (reg) {
+      var check = function () { reg.update().catch(function () {}); };
+      document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") check(); });
+      setInterval(check, 30 * 60 * 1000);
+    }).catch(function () {});
+  });
 }
 </script>
 </body>

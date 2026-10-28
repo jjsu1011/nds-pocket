@@ -211,6 +211,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 #player.pad-edit .ejs_virtualGamepad_button,
 #player.pad-edit .ejs_dpad_main { outline: 2px dashed #f2b33d; outline-offset: 3px; cursor: grab; }
 #player.pad-edit .quickbar { display: none; }
+/* locked: only gameplay controls stay. Unlock by holding the lock button. */
+#player.locked .quickbar > button:not(#lockBtn),
+#player.locked .ejs_virtualGamepad_open,
+#player.locked .ejs_menu_bar,
+#player.locked .b_speed_fast, #player.locked .b_speed_slow,
+#player.locked .split-panel { display: none !important; }
+#player.locked .quickbar { opacity: 0.45; }
+#lockBtn.holding { background: #f2b33d55 !important; }
 .editbar {
   position: absolute; z-index: 7; left: 50%; transform: translateX(-50%);
   top: calc(6px + env(safe-area-inset-top, 0px));
@@ -327,6 +335,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     </button>
     <button id="moveBtn" aria-label="버튼 이동">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg><span class="ql">버튼 이동</span>
+    </button>
+    <button id="lockBtn" aria-label="잠금: 게임 버튼만 남기기" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path id="lockShackle" d="M8 11V8a4 4 0 0 1 7.5-2"/></svg><span class="ql" id="lockLabel">잠금</span>
     </button>
   </div>
   <div class="split-panel" id="splitPanel" hidden>
@@ -854,8 +865,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     } else {
       // touches arrive as absolute points (forwarded by our drawing layer)
       defaults["desmume_pointer_type"] = "touch";
-      // lighter emulation on phones (tiny accuracy cost)
-      defaults["desmume_advanced_timing"] = "disabled";
+      // accurate timing and no frame skipping: skipping left half-drawn 3D (black boxes, broken sprites)
+      defaults["desmume_advanced_timing"] = "enabled";
+      defaults["desmume_frameskip"] = "0";
       defaults["desmume_screens_gap"] = "0";
       // engine's own 3:1 hybrid, kept as a fallback layout
       defaults["desmume_hybrid_layout_scale"] = "3";
@@ -919,9 +931,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   // CPU time goes to emulation. ratio 0 = as fast as the phone can go.
   const SPEEDS = [
     { label: "1x", ratio: 1, skip: "0" },
-    { label: "2x", ratio: 2, skip: "1" },
-    { label: "4x", ratio: 4, skip: "2" },
-    { label: "최대", ratio: 8, skip: "5" }
+    { label: "2x", ratio: 2, skip: "0" },
+    { label: "4x", ratio: 4, skip: "0" },
+    { label: "최대", ratio: 8, skip: "0" }
   ];
   let speedIdx = 0;
   function applySpeed() {
@@ -955,6 +967,33 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
   $("splitRange").addEventListener("change", saveSettings);
   syncSplit();
+
+  // ---------- Lock: hide everything but gameplay controls ----------
+  let locked = false, holdTimer = 0, justUnlocked = false;
+  function setLocked(on) {
+    locked = on;
+    $("player").classList.toggle("locked", on);
+    $("lockBtn").setAttribute("aria-pressed", String(!on));
+    $("lockBtn").setAttribute("aria-label", on ? "잠김: 길게 눌러 잠금 풀기" : "잠금: 게임 버튼만 남기기");
+    $("lockLabel").textContent = on ? "잠김" : "잠금";
+    $("lockShackle").setAttribute("d", on ? "M8 11V8a4 4 0 0 1 8 0v3" : "M8 11V8a4 4 0 0 1 7.5-2");
+    if (on) { $("splitPanel").hidden = true; try { window.EJS_emulator.menu.close(); } catch (e) {} }
+  }
+  $("lockBtn").addEventListener("click", () => {
+    if (justUnlocked) { justUnlocked = false; return; } // the click that ends an unlocking hold
+    if (!locked) { setLocked(true); toast("잠금 · 자물쇠를 꾹 누르면 풀려"); }
+    else if (!holdTimer) toast("자물쇠를 1초 정도 꾹 누르면 풀려");
+  });
+  const startHold = e => {
+    if (!locked) return;
+    e.preventDefault();
+    $("lockBtn").classList.add("holding");
+    holdTimer = setTimeout(() => { holdTimer = 0; $("lockBtn").classList.remove("holding"); setLocked(false); justUnlocked = true; toast("잠금 풀림"); }, 900);
+  };
+  const endHold = () => { if (holdTimer) { clearTimeout(holdTimer); holdTimer = 0; } $("lockBtn").classList.remove("holding"); };
+  $("lockBtn").addEventListener("pointerdown", startHold);
+  ["pointerup", "pointerleave", "pointercancel"].forEach(t => $("lockBtn").addEventListener(t, endHold));
+  $("lockBtn").addEventListener("contextmenu", e => e.preventDefault());
 
   // ---------- Moving the on-screen controls ----------
   // Controls move in groups; offsets are stored as fractions of the screen, separately for portrait and landscape.
@@ -1061,7 +1100,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V14", "changes": {"V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:08+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V15", "changes": {"V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:24+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

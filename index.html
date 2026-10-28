@@ -712,10 +712,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const L = resolveLayout(settings.layout);
     return settings.layout === "auto" ? "자동 · " + L.name : L.name;
   }
+  let lastEngineLayout = null;
   function applyLayout() {
     const L = resolveLayout(settings.layout);
     $("layoutBtnLabel").textContent = layoutLabel();
-    try { window.EJS_emulator.gameManager.setVariable(layoutKey(settings.core), layoutVal(settings.core, L)); } catch (e) {}
+    const v = layoutVal(settings.core, L);
+    if (v !== lastEngineLayout) {
+      try { window.EJS_emulator.gameManager.setVariable(layoutKey(settings.core), v); lastEngineLayout = v; } catch (e) {}
+    }
     $("splitBtn").hidden = !L.compose;
     if (!L.compose) $("splitPanel").hidden = true;
     layoutComp();
@@ -810,7 +814,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       ctx.drawImage(cv, c.x, c.y + half * c.h / 2, c.w, c.h / 2, 0, 0, dst.width, dst.height);
     });
   }
-  window.addEventListener("resize", () => setTimeout(layoutComp, 60));
 
   // WebGL normally discards each frame after showing it; keep it so we can copy from it.
   (function () {
@@ -820,9 +823,22 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       return orig.call(this, type, attrs);
     };
   })();
-  window.matchMedia("(orientation: landscape)").addEventListener("change", () => {
-    if (current && settings.layout === "auto") setTimeout(applyLayout, 150);
-  });
+  // Rotation: iOS reports the final size only after the rotation animation, and sends several
+  // resize events on the way. Redo everything in order once things settle (and again a bit later).
+  let relayoutTimers = [];
+  function relayout() {
+    if (!current) return;
+    try { window.EJS_emulator.handleResize(); } catch (e) {}
+    applyLayout();     // engine layout (auto) + our two-screen drawing
+    applyPadPos();     // on-screen controls for this orientation
+  }
+  function scheduleRelayout() {
+    relayoutTimers.forEach(clearTimeout);
+    relayoutTimers = [120, 400, 900].map(t => setTimeout(relayout, t));
+  }
+  window.addEventListener("resize", scheduleRelayout);
+  window.addEventListener("orientationchange", scheduleRelayout);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleRelayout);
   function layoutKey(core) { return core === "melonds" ? "melonds_screen_layout" : "desmume_screens_layout"; }
   function layoutVal(core, L) { return core === "melonds" ? L.melon : L.desmume; }
 
@@ -1089,7 +1105,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     });
     $("size-" + k).addEventListener("change", () => savePadPos(padPos));
   });
-  window.addEventListener("resize", () => { if (current) applyPadPos(); });
 
   let editing = false, drag = null;
   function pt(e) { const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e; return [t.clientX, t.clientY]; }
@@ -1164,7 +1179,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V16", "changes": {"V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:45+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V17", "changes": {"V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T12:32+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

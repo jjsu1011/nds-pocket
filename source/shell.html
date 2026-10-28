@@ -695,10 +695,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const L = resolveLayout(settings.layout);
     return settings.layout === "auto" ? "자동 · " + L.name : L.name;
   }
+  let lastEngineLayout = null;
   function applyLayout() {
     const L = resolveLayout(settings.layout);
     $("layoutBtnLabel").textContent = layoutLabel();
-    try { window.EJS_emulator.gameManager.setVariable(layoutKey(settings.core), layoutVal(settings.core, L)); } catch (e) {}
+    const v = layoutVal(settings.core, L);
+    if (v !== lastEngineLayout) {
+      try { window.EJS_emulator.gameManager.setVariable(layoutKey(settings.core), v); lastEngineLayout = v; } catch (e) {}
+    }
     $("splitBtn").hidden = !L.compose;
     if (!L.compose) $("splitPanel").hidden = true;
     layoutComp();
@@ -793,7 +797,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       ctx.drawImage(cv, c.x, c.y + half * c.h / 2, c.w, c.h / 2, 0, 0, dst.width, dst.height);
     });
   }
-  window.addEventListener("resize", () => setTimeout(layoutComp, 60));
 
   // WebGL normally discards each frame after showing it; keep it so we can copy from it.
   (function () {
@@ -803,9 +806,22 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       return orig.call(this, type, attrs);
     };
   })();
-  window.matchMedia("(orientation: landscape)").addEventListener("change", () => {
-    if (current && settings.layout === "auto") setTimeout(applyLayout, 150);
-  });
+  // Rotation: iOS reports the final size only after the rotation animation, and sends several
+  // resize events on the way. Redo everything in order once things settle (and again a bit later).
+  let relayoutTimers = [];
+  function relayout() {
+    if (!current) return;
+    try { window.EJS_emulator.handleResize(); } catch (e) {}
+    applyLayout();     // engine layout (auto) + our two-screen drawing
+    applyPadPos();     // on-screen controls for this orientation
+  }
+  function scheduleRelayout() {
+    relayoutTimers.forEach(clearTimeout);
+    relayoutTimers = [120, 400, 900].map(t => setTimeout(relayout, t));
+  }
+  window.addEventListener("resize", scheduleRelayout);
+  window.addEventListener("orientationchange", scheduleRelayout);
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleRelayout);
   function layoutKey(core) { return core === "melonds" ? "melonds_screen_layout" : "desmume_screens_layout"; }
   function layoutVal(core, L) { return core === "melonds" ? L.melon : L.desmume; }
 
@@ -1072,7 +1088,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     });
     $("size-" + k).addEventListener("change", () => savePadPos(padPos));
   });
-  window.addEventListener("resize", () => { if (current) applyPadPos(); });
 
   let editing = false, drag = null;
   function pt(e) { const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e; return [t.clientX, t.clientY]; }

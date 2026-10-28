@@ -172,6 +172,17 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .split-panel .row2 { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 .split-panel input[type=range] { width: 100%; accent-color: #f2b33d; }
 #player.pad-off:not(.pad-edit) .ejs_virtualGamepad_parent { display: none !important; }
+/* keep the emulator's ☰ button and its menu bar clear of rounded corners and the notch */
+#player .ejs_virtualGamepad_open {
+  top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+  right: calc(14px + env(safe-area-inset-right, 0px)) !important;
+}
+#player .ejs_menu_bar {
+  padding-left: calc(8px + env(safe-area-inset-left, 0px)) !important;
+  padding-right: calc(8px + env(safe-area-inset-right, 0px)) !important;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box;
+}
 #player.pad-edit .ejs_virtualGamepad_parent { display: block !important; opacity: 1 !important; z-index: 6; }
 #player.pad-edit .ejs_virtualGamepad_button,
 #player.pad-edit .ejs_dpad_main { outline: 2px dashed #f2b33d; outline-offset: 3px; cursor: grab; }
@@ -195,7 +206,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   opacity: 0.55; transition: opacity 0.2s;
 }
 /* narrow screens: icons only, so the bar stays one short row */
-@media (max-width: 700px) {
+@media (max-width: 960px) {
   .quickbar .ql { display: none; }
   .quickbar button { padding: 0 9px; }
 }
@@ -268,6 +279,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     </button>
     <button id="padBtn" aria-pressed="true" aria-label="화면 버튼 켜고 끄기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 9v6M5 12h6"/><circle cx="16" cy="10" r="1.4" fill="currentColor"/><circle cx="18.5" cy="13.5" r="1.4" fill="currentColor"/><rect x="2" y="5" width="20" height="14" rx="5"/></svg><span class="ql" id="padBtnLabel">버튼 끄기</span>
+    </button>
+    <button id="speedBtn" aria-label="게임 속도 바꾸기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l8 6-8 6zM12 6l8 6-8 6z"/></svg><span id="speedLabel">1x</span>
     </button>
     <button id="splitBtn" hidden aria-label="화면 크기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="10" rx="1.5"/><rect x="17" y="10" width="5" height="4" rx="1"/></svg><span class="ql">화면 크기</span>
@@ -571,7 +585,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
         id: (info.code || "X") + "-" + f.size + "-" + f.name,
         fileName: f.name, size: f.size, added: Date.now(), lastPlayed: 0,
         code: info.code, title: info.title, publisher: info.publisher, icon: info.icon,
-        blob: f
+        // store a copy of the bytes, not the picked File: iOS can drop a File's link to
+        // the Files app after a relaunch, and the ROM then fails to load ("네트워크 오류")
+        blob: new Blob([await f.arrayBuffer()], { type: "application/octet-stream" })
       };
       const ok = await putRom(rec);
       if (!ok) memOnly = true;
@@ -720,6 +736,9 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     let rec;
     try { rec = await getRom(id); } catch (e) {}
     if (!rec || !rec.blob) { toast("롬 파일을 못 읽었어. 다시 추가해줘"); return; }
+    // ROMs added before V10 may point at a file iOS no longer lets us read
+    try { await rec.blob.slice(0, 16).arrayBuffer(); }
+    catch (e) { toast("이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)"); return; }
     current = rec;
     rec.lastPlayed = Date.now();
     putRom(rec);
@@ -740,6 +759,8 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     } else {
       // touches arrive as absolute points (forwarded by our drawing layer)
       defaults["desmume_pointer_type"] = "touch";
+      // lighter emulation on phones (tiny accuracy cost)
+      defaults["desmume_advanced_timing"] = "disabled";
       defaults["desmume_screens_gap"] = "0";
       // engine's own 3:1 hybrid, kept as a fallback layout
       defaults["desmume_hybrid_layout_scale"] = "3";
@@ -797,6 +818,33 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     applyPad();
   });
   applyPad();
+
+  // ---------- Game speed ----------
+  // The phone, not the ratio, is the limit: while fast-forwarding, skip drawing frames so the
+  // CPU time goes to emulation. ratio 0 = as fast as the phone can go.
+  const SPEEDS = [
+    { label: "1x", ratio: 1, skip: "0" },
+    { label: "2x", ratio: 2, skip: "1" },
+    { label: "4x", ratio: 4, skip: "2" },
+    { label: "최대", ratio: 8, skip: "5" }
+  ];
+  let speedIdx = 0;
+  function applySpeed() {
+    const s = SPEEDS[speedIdx];
+    $("speedLabel").textContent = s.label;
+    $("speedBtn").setAttribute("aria-pressed", String(speedIdx === 0 ? "true" : "false"));
+    try {
+      const emu = window.EJS_emulator, gm = emu.gameManager;
+      gm.setVariable("desmume_frameskip", s.skip);
+      if (s.ratio === 1) { gm.toggleFastForward(0); emu.isFastForward = false; }
+      else { gm.setFastForwardRatio(s.ratio); gm.toggleFastForward(1); emu.isFastForward = true; }
+    } catch (e) {}
+  }
+  $("speedBtn").addEventListener("click", () => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    applySpeed();
+    toast(speedIdx === 0 ? "보통 속도" : SPEEDS[speedIdx].label + " 속도");
+  });
 
   // Screen split slider (share of the width for the top screen)
   function syncSplit() {

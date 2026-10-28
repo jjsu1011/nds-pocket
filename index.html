@@ -156,7 +156,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .layout-pic rect { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.5; }
 .seg input:checked + span .layout-pic rect { stroke: var(--accent); }
 .note { color: var(--muted); font-size: 13px; margin: 0; }
-.version-line { color: var(--muted); font-size: 12px; margin: 18px 0 0; font-variant-numeric: tabular-nums; }
+.ver-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); }
+.ver-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ver-row span:first-child { color: var(--muted); }
+.ver-row .new { color: var(--accent); font-weight: 600; }
+.add-btn.small { padding: 8px 16px; font-size: 14px; align-self: flex-start; cursor: pointer; }
+.ver-changes { border-top: 1px solid var(--line); padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.ver-changes-title { font-size: 13px; font-weight: 600; }
+.ver-changes .changes { font-size: 13px; color: var(--fg); }
 .changes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .changes li { line-height: 1.45; }
 #whatsnew .sheet fieldset + fieldset, #settings .chip-btn { align-self: flex-start; }
@@ -265,7 +272,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 
   <p class="section-label"><span>라이브러리</span><span id="count"></span></p>
   <div id="list" class="list"></div>
-  <p class="version-line" id="versionLine"></p>
 </div>
 
 <div id="settings" hidden>
@@ -285,8 +291,17 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 
     <fieldset>
       <legend>앱 정보</legend>
-      <p class="note" id="versionInfo"></p>
-      <button class="chip-btn" id="showChanges" type="button">새로워진 점 보기</button>
+      <div class="ver-card">
+        <div class="ver-row"><span>지금 버전</span><b id="curVer"></b></div>
+        <div class="ver-row"><span>업데이트 시각</span><span id="curStamp"></span></div>
+        <div class="ver-row"><span>최신 버전</span><span id="latestVer">확인 중…</span></div>
+        <p class="note" id="latestState"></p>
+        <button class="add-btn small" id="updateNow" type="button" hidden>지금 업데이트</button>
+        <div class="ver-changes">
+          <div class="ver-changes-title" id="changesTitle"></div>
+          <ul class="changes" id="latestChanges"></ul>
+        </div>
+      </div>
     </fieldset>
 
   </div>
@@ -1046,27 +1061,10 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
 
   // ---------- Version, update notice, what's new ----------
-  const APP_VERSION = "V13";
-  const BUILD_STAMP = "2026-10-28T11:04+09:00"; // ISO time, filled in at build
-  const CHANGES = {
-    V13: [
-      "터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어",
-      "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"
-    ],
-    V12: [
-      "새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼",
-      "업데이트 후 처음 켜면 이 화면으로 바뀐 점을 보여줘",
-      "목록 화면 아래와 설정에 버전과 업데이트 시각을 표시해"
-    ],
-    V11: [
-      "켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)",
-      "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"
-    ],
-    V10: [
-      "▶▶ 배속 버튼: 1x → 2x → 4x → 최대",
-      "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"
-    ]
-  };
+  const VERSION_INFO = {"version": "V14", "changes": {"V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:08+09:00"}; // src/version.json + build time
+  const APP_VERSION = VERSION_INFO.version;
+  const BUILD_STAMP = VERSION_INFO.stamp;
+  const CHANGES = VERSION_INFO.changes;
   function fmtStamp(iso) {
     const d = new Date(iso);
     if (isNaN(d)) return "";
@@ -1075,8 +1073,54 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   }
   const stampText = fmtStamp(BUILD_STAMP);
   const versionText = APP_VERSION + (stampText ? " · " + stampText + " 업데이트" : "");
-  $("versionLine").textContent = versionText;
-  $("versionInfo").textContent = versionText;
+  const vnum = v => parseInt(String(v).replace(/\D/g, ""), 10) || 0;
+  function fillChanges(ver, list) {
+    $("changesTitle").textContent = ver + "에서 바뀐 점";
+    const ul = $("latestChanges"); ul.innerHTML = "";
+    (list || []).forEach(t => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+  }
+  $("curVer").textContent = APP_VERSION;
+  $("curStamp").textContent = stampText || "-";
+  fillChanges(APP_VERSION, CHANGES[APP_VERSION]);
+
+  // Ask the site for its newest version (home-screen app only; the Claude page has no version.json).
+  let latestInfo = null;
+  async function checkLatest() {
+    $("updateNow").hidden = true;
+    $("latestVer").textContent = "확인 중…"; $("latestVer").className = "";
+    $("latestState").textContent = "";
+    try {
+      const r = await fetch("version.json?t=" + Date.now(), { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      latestInfo = await r.json();
+    } catch (e) {
+      latestInfo = null;
+      $("latestVer").textContent = "-";
+      $("latestState").textContent = navigator.onLine === false ? "오프라인이라 최신 버전을 확인하지 못했어" : "이 화면에서는 최신 버전 확인을 지원하지 않아";
+      return;
+    }
+    const lv = latestInfo.version;
+    if (vnum(lv) > vnum(APP_VERSION)) {
+      $("latestVer").textContent = lv + (latestInfo.stamp ? " · " + fmtStamp(latestInfo.stamp) : "");
+      $("latestVer").className = "new";
+      $("latestState").textContent = "새 버전이 있어. 롬이랑 세이브는 그대로 두고 앱만 바꿔";
+      $("updateNow").hidden = false;
+      fillChanges(lv, latestInfo.changes && latestInfo.changes[lv]);
+    } else {
+      $("latestVer").textContent = APP_VERSION;
+      $("latestState").textContent = "최신 버전이야";
+      fillChanges(APP_VERSION, CHANGES[APP_VERSION]);
+    }
+  }
+  // Drop the cached app files and load fresh ones. ROMs and saves live in IndexedDB and are untouched.
+  async function forceUpdate() {
+    toast("새 버전 받는 중…");
+    try { const regs = await navigator.serviceWorker.getRegistrations(); for (const r of regs) await r.unregister(); } catch (e) {}
+    try { for (const k of await caches.keys()) await caches.delete(k); } catch (e) {}
+    location.replace(location.pathname + "?v=" + encodeURIComponent((latestInfo && latestInfo.version) || "") + "&t=" + Date.now());
+  }
+  $("updateNow").addEventListener("click", forceUpdate);
+  $("openSettings").addEventListener("click", checkLatest);
 
   function showWhatsNew() {
     $("whatsnewMeta").textContent = versionText;
@@ -1088,7 +1132,6 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   }
   $("whatsnewClose").addEventListener("click", () => { $("whatsnew").hidden = true; });
   $("whatsnew").addEventListener("click", e => { if (e.target.id === "whatsnew") $("whatsnew").hidden = true; });
-  $("showChanges").addEventListener("click", showWhatsNew);
   // once per version, and not on the very first run
   (function () {
     let seen = null;

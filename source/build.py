@@ -130,7 +130,10 @@ def main():
     shell = read(os.path.join(ROOT, "src/shell.html"))
     import datetime
     stamp = datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=9))).isoformat(timespec="minutes")
-    shell = shell.replace("__BUILD_STAMP__", stamp)
+    vinfo = json.load(open(os.path.join(ROOT, "src/version.json"), encoding="utf-8"))
+    vinfo["stamp"] = stamp
+    shell = shell.replace("__VERSION_JSON__", json.dumps(vinfo, ensure_ascii=False))
+    write("version.json", json.dumps(vinfo, ensure_ascii=False, indent=1))
     write("index.html", shell.replace("<!--EJS_BUNDLE-->", ""))
 
     # Single-file page (no supporting files): the Claude app viewer will only open those.

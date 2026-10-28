@@ -1,0 +1,953 @@
+<title>NDS Pocket</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: one-screen app. Library = list of cartridges (DraStic-style rows), Player = black stage with a floating quick bar. */
+:root {
+  --bg: #121417;
+  --surface: #1a1d22;
+  --surface-2: #22262d;
+  --line: #2c313a;
+  --fg: #e8eaee;
+  --muted: #8d95a3;
+  --accent: #f2b33d;      /* power-LED amber */
+  --accent-ink: #1c1405;
+  --danger: #ef6a5b;
+  --font-display: "Chakra Petch", "IBM Plex Sans KR", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --radius: 10px;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, label:focus-visible, input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Library ---------- */
+#library {
+  min-height: 100%;
+  display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 24px;
+  max-width: 720px; margin: 0 auto; box-sizing: border-box;
+}
+.topbar { display: flex; align-items: center; gap: 12px; padding-block: 8px 16px; }
+.brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.brand-mark { width: 30px; height: 30px; flex: none; }
+.brand h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: 0.02em; }
+.brand h1 span { color: var(--accent); }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line);
+  background: var(--surface); display: grid; place-items: center; flex: none;
+}
+.icon-btn svg { width: 20px; height: 20px; }
+
+.add-row { display: flex; gap: 10px; align-items: center; margin-bottom: 18px; flex-wrap: wrap; }
+.add-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink); border: 0;
+  border-radius: 999px; padding: 10px 18px; font-weight: 600;
+}
+.add-btn svg { width: 18px; height: 18px; }
+.hint { color: var(--muted); font-size: 13px; }
+#romInput { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.section-label {
+  font-family: var(--font-display); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 8px; display: flex; justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.row {
+  display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 14px; align-items: center;
+  padding: 12px 4px; border-bottom: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-top: 0;
+  text-align: left; width: 100%;
+}
+.row:active { background: var(--surface); }
+.cart {
+  width: 64px; height: 64px; border-radius: 8px; background: var(--surface-2);
+  display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line);
+}
+.cart img { width: 64px; height: 64px; image-rendering: pixelated; display: block; }
+.cart .code { font-family: var(--font-display); font-size: 12px; color: var(--muted); letter-spacing: 0.06em; }
+.meta { min-width: 0; }
+.title { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.facts { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; font-family: var(--font-display); letter-spacing: 0.04em; }
+.more { width: 36px; height: 36px; border-radius: 50%; border: 0; background: none; color: var(--muted); display: grid; place-items: center; }
+.more svg { width: 20px; height: 20px; }
+.row-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+.chip-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 13px; }
+.chip-btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+
+.empty {
+  border: 1px dashed var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px;
+}
+.empty h2 { margin: 0; font-family: var(--font-display); font-size: 18px; text-wrap: balance; }
+.empty ol { margin: 0; padding-left: 20px; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.ghost { opacity: 0.55; pointer-events: none; border-top: 1px solid var(--line); }
+.ghost-tag { font-size: 11px; color: var(--accent); font-family: var(--font-display); letter-spacing: 0.1em; }
+
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+  padding: 10px 18px; font-size: 14px; z-index: 50; max-width: calc(100% - 40px);
+}
+
+/* ---------- Settings sheet ---------- */
+#settings {
+  position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, #000 55%, transparent);
+}
+.sheet {
+  width: 100%; max-width: 560px; background: var(--surface); border-radius: 16px 16px 0 0;
+  border: 1px solid var(--line); border-bottom: 0;
+  padding-left: max(20px, env(safe-area-inset-left, 0px));
+  padding-right: max(20px, env(safe-area-inset-right, 0px));
+  padding-block: 18px calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 20px; max-height: 85%; overflow-y: auto; box-sizing: border-box;
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; }
+.sheet-head h2 { margin: 0; font-family: var(--font-display); font-size: 18px; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
+.seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.seg label { position: relative; }
+#layoutSeg label:first-child { grid-column: 1 / -1; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; }
+.seg span {
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--bg); min-height: 100%; box-sizing: border-box;
+}
+.seg span small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.seg input:checked + span { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--bg)); }
+.layout-pic { width: 44px; height: 30px; }
+.layout-pic rect { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.5; }
+.seg input:checked + span .layout-pic rect { stroke: var(--accent); }
+.note { color: var(--muted); font-size: 13px; margin: 0; }
+
+/* ---------- Player ---------- */
+#player { position: fixed; inset: 0; background: #000; z-index: 30; }
+/* the game runs edge to edge; on-screen controls and the quick bar float over it */
+#stage { position: absolute; inset: 0; }
+/* our own two-screen drawing layer; sits over the engine canvas, under the on-screen controls */
+.comp { position: absolute; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
+.comp canvas { position: absolute; display: none; }
+.comp.on { background: #000; }
+.comp.on canvas { display: block; }
+.split-panel {
+  position: absolute; z-index: 7; left: 50%; transform: translateX(-50%);
+  top: calc(40px + env(safe-area-inset-top, 0px));
+  background: #121417ee; border: 1px solid #ffffff22; border-radius: 14px; padding: 10px 14px;
+  color: #e8eaee; font-size: 12px; display: flex; flex-direction: column; gap: 6px; width: min(320px, calc(100% - 32px)); box-sizing: border-box;
+}
+.split-panel .row2 { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+.split-panel input[type=range] { width: 100%; accent-color: #f2b33d; }
+#player.pad-off:not(.pad-edit) .ejs_virtualGamepad_parent { display: none !important; }
+/* keep the emulator's ☰ button and its menu bar clear of rounded corners and the notch */
+#player .ejs_virtualGamepad_open {
+  top: calc(10px + env(safe-area-inset-top, 0px)) !important;
+  right: calc(14px + env(safe-area-inset-right, 0px)) !important;
+}
+#player .ejs_menu_bar {
+  padding-left: calc(8px + env(safe-area-inset-left, 0px)) !important;
+  padding-right: calc(8px + env(safe-area-inset-right, 0px)) !important;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  box-sizing: border-box;
+}
+#player.pad-edit .ejs_virtualGamepad_parent { display: block !important; opacity: 1 !important; z-index: 6; }
+#player.pad-edit .ejs_virtualGamepad_button,
+#player.pad-edit .ejs_dpad_main { outline: 2px dashed #f2b33d; outline-offset: 3px; cursor: grab; }
+#player.pad-edit .quickbar { display: none; }
+.editbar {
+  position: absolute; z-index: 7; left: 50%; transform: translateX(-50%);
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+  background: #121417e6; border: 1px solid #f2b33d88; border-radius: 999px; padding: 4px 6px 4px 14px;
+  color: #e8eaee; font-size: 12px; max-width: calc(100% - 24px);
+}
+.editbar button { height: 28px; border-radius: 999px; border: 1px solid #ffffff33; background: #22262d; color: #e8eaee; padding: 0 12px; font-size: 12px; }
+.editbar button.primary { background: #f2b33d; color: #1c1405; border-color: #f2b33d; font-weight: 600; }
+.quickbar button[aria-pressed="false"] { color: #f2b33d; border-color: #f2b33d66; }
+#game { width: 100%; height: 100%; }
+/* top-centre, small and dim so it never sits on the D-pad or face buttons */
+.quickbar {
+  position: absolute; z-index: 5; display: flex; gap: 4px;
+  top: calc(4px + env(safe-area-inset-top, 0px));
+  left: 50%; transform: translateX(-50%);
+  opacity: 0.55; transition: opacity 0.2s;
+}
+/* narrow screens: icons only, so the bar stays one short row */
+@media (max-width: 960px) {
+  .quickbar .ql { display: none; }
+  .quickbar button { padding: 0 9px; }
+}
+.quickbar:hover, .quickbar:focus-within { opacity: 1; }
+.quickbar button {
+  height: 28px; border-radius: 999px; border: 1px solid #ffffff22; background: #000000aa; color: #e8eaee;
+  padding: 0 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
+}
+.quickbar svg { width: 14px; height: 14px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: rise 0.22s ease-out; }
+  @keyframes rise { from { transform: translateY(24px); opacity: 0.6; } to { transform: none; opacity: 1; } }
+}
+</style>
+
+<div id="library">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 30 30" aria-hidden="true">
+        <rect x="5" y="1.5" width="20" height="12" rx="2" fill="none" stroke="#f2b33d" stroke-width="2"/>
+        <rect x="5" y="16.5" width="20" height="12" rx="2" fill="#f2b33d"/>
+      </svg>
+      <h1>NDS <span>Pocket</span></h1>
+    </div>
+    <button class="icon-btn" id="openSettings" aria-label="설정">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+    </button>
+  </header>
+
+  <div class="add-row">
+    <label class="add-btn" for="romInput" tabindex="0" id="addLabel">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      롬 추가
+    </label>
+    <input type="file" id="romInput" accept=".nds,.zip,application/octet-stream" multiple>
+    <span class="hint">.nds 또는 .zip · 한 번 추가하면 이 기기에 보관돼</span>
+  </div>
+
+  <p class="section-label"><span>라이브러리</span><span id="count"></span></p>
+  <div id="list" class="list"></div>
+</div>
+
+<div id="settings" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="sheet-head">
+      <h2 id="settingsTitle">설정</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="닫기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <fieldset>
+      <legend>화면 배치</legend>
+      <div class="seg" id="layoutSeg"></div>
+      <p class="note">게임 중에도 상단 <b>배치</b> 버튼으로 바로 바꿀 수 있어.</p>
+    </fieldset>
+
+  </div>
+</div>
+
+<div id="player" hidden>
+  <div id="stage"><div id="game"></div></div>
+  <div class="quickbar">
+    <button id="backBtn" aria-label="목록으로">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span class="ql">목록</span>
+    </button>
+    <button id="layoutBtn" aria-label="화면 배치 바꾸기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="3" width="12" height="8" rx="1.5"/><rect x="6" y="13" width="12" height="8" rx="1.5"/></svg><span class="ql" id="layoutBtnLabel">배치</span>
+    </button>
+    <button id="padBtn" aria-pressed="true" aria-label="화면 버튼 켜고 끄기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 9v6M5 12h6"/><circle cx="16" cy="10" r="1.4" fill="currentColor"/><circle cx="18.5" cy="13.5" r="1.4" fill="currentColor"/><rect x="2" y="5" width="20" height="14" rx="5"/></svg><span class="ql" id="padBtnLabel">버튼 끄기</span>
+    </button>
+    <button id="speedBtn" aria-label="게임 속도 바꾸기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l8 6-8 6zM12 6l8 6-8 6z"/></svg><span id="speedLabel">1x</span>
+    </button>
+    <button id="splitBtn" hidden aria-label="화면 크기">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="10" rx="1.5"/><rect x="17" y="10" width="5" height="4" rx="1"/></svg><span class="ql">화면 크기</span>
+    </button>
+    <button id="moveBtn" aria-label="버튼 이동">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg><span class="ql">버튼 이동</span>
+    </button>
+  </div>
+  <div class="split-panel" id="splitPanel" hidden>
+    <div class="row2"><span>위 화면 <b id="splitTop">70%</b></span><span>아래(터치) 화면 <b id="splitBot">30%</b></span></div>
+    <input type="range" id="splitRange" min="50" max="85" step="1" value="70" aria-label="위 화면이 차지하는 가로 비율">
+  </div>
+  <div class="editbar" id="editbar" hidden>
+    <span>버튼을 끌어서 옮겨</span>
+    <button id="padReset">처음 위치로</button>
+    <button id="padDone" class="primary">완료</button>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<!--EJS_BUNDLE-->
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Settings ----------
+  // Each layout maps to both cores' option values.
+  // compose: the page draws the two screens itself from the engine's stacked output
+  const LAYOUTS = [
+    { id: "auto",   name: "자동",       note: "세로는 위아래, 가로는 큰 화면", pic: [[2,1,18,13],[2,16,18,13],[24,4,13,22],[38,18,5,8]] },
+    { id: "stack",  name: "위아래",     note: "세로로 들고 플레이", desmume: "top/bottom", melon: "Top/Bottom",  pic: [[2,1,40,13],[2,16,40,13]] },
+    { id: "hybrid", name: "큰 화면+작게", note: "두 화면 크기를 비율로 조절", desmume: "top/bottom", melon: "Top/Bottom", compose: true, pic: [[1,4,28,22],[31,12,12,9]] },
+    { id: "hybrid3", name: "큰 화면+작게 (기본)", note: "엔진 기본 3:1 배치", desmume: "hybrid/top", melon: "Hybrid Top",  pic: [[1,1,30,28],[33,18,10,11]] },
+    { id: "side",   name: "좌우",       note: "두 화면을 옆으로 (작게 보임)", desmume: "left/right", melon: "Left/Right",  pic: [[1,7,20,15],[23,7,20,15]] },
+    { id: "single", name: "한 화면",    note: "위 화면만 표시",     desmume: "top only",   melon: "Top Only",    pic: [[6,3,32,24]] }
+  ];
+  const DEFAULTS = { layout: "auto", core: "desmume2015" };
+  const isLandscape = () => window.matchMedia("(orientation: landscape)").matches;
+  // "auto" resolves to a concrete layout from the current orientation.
+  function resolveLayout(id) {
+    if (id === "auto") return LAYOUTS.find(l => l.id === (isLandscape() ? "hybrid" : "stack"));
+    return LAYOUTS.find(l => l.id === id) || LAYOUTS[1];
+  }
+
+  function loadSettings() {
+    try { return Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem("ndsp-settings") || "{}")); }
+    catch (e) { return Object.assign({}, DEFAULTS); }
+  }
+  function saveSettings() {
+    try { localStorage.setItem("ndsp-settings", JSON.stringify(settings)); } catch (e) {}
+  }
+  let settings = loadSettings();
+  // V03 introduced the auto layout; move earlier saves onto it once.
+  if (settings.v !== 3) { settings.layout = "auto"; settings.v = 3; saveSettings(); }
+  settings.core = "desmume2015"; // the only engine shipped since V05
+
+  // ---------- Storage (IndexedDB) ----------
+  let dbp = null;
+  function db() {
+    if (!dbp) dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open("nds-pocket", 1);
+        r.onupgradeneeded = () => r.result.createObjectStore("roms", { keyPath: "id" });
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+      } catch (e) { rej(e); }
+    });
+    return dbp;
+  }
+  function tx(mode, fn) {
+    return db().then(d => new Promise((res, rej) => {
+      const t = d.transaction("roms", mode);
+      const s = t.objectStore("roms");
+      const out = fn(s);
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error);
+    }));
+  }
+  const memoryRoms = new Map(); // fallback when IndexedDB is unavailable
+  async function allRoms() {
+    try {
+      const list = await tx("readonly", s => s.getAll());
+      return (list || []).concat([...memoryRoms.values()]);
+    } catch (e) { return [...memoryRoms.values()]; }
+  }
+  async function putRom(rec) {
+    try { await tx("readwrite", s => s.put(rec)); return true; }
+    catch (e) { memoryRoms.set(rec.id, rec); return false; }
+  }
+  async function getRom(id) {
+    if (memoryRoms.has(id)) return memoryRoms.get(id);
+    return tx("readonly", s => s.get(id));
+  }
+  async function deleteRom(id) {
+    memoryRoms.delete(id);
+    try { await tx("readwrite", s => s.delete(id)); } catch (e) {}
+  }
+
+  // ---------- NDS header / banner parsing ----------
+  function u16(b, o) { return b[o] | (b[o + 1] << 8); }
+  function u32(b, o) { return (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0; }
+  function ascii(b, o, n) { let s = ""; for (let i = 0; i < n; i++) { const c = b[o + i]; if (!c) break; s += String.fromCharCode(c); } return s.trim(); }
+  function utf16(b, o, n) {
+    let s = "";
+    for (let i = 0; i < n; i += 2) { const c = u16(b, o + i); if (!c) break; s += String.fromCharCode(c); }
+    return s;
+  }
+
+  async function parseRom(file) {
+    const info = { code: "", title: "", publisher: "", icon: "" };
+    try {
+      const head = new Uint8Array(await file.slice(0, 0x200).arrayBuffer());
+      info.code = ascii(head, 0x0C, 4);
+      const internal = ascii(head, 0x00, 12);
+      const bannerOff = u32(head, 0x68);
+      if (bannerOff && bannerOff + 0xA40 <= file.size) {
+        const bn = new Uint8Array(await file.slice(bannerOff, bannerOff + 0xA40).arrayBuffer());
+        const ver = u16(bn, 0);
+        // Korean (v3, 0x940) → English (0x340) → Japanese (0x240)
+        const slots = [];
+        if (ver >= 3) slots.push(0x940);
+        slots.push(0x340, 0x240);
+        let text = "";
+        for (const o of slots) { const t = utf16(bn, o, 0x100).trim(); if (t) { text = t; break; } }
+        const lines = text.split("\n").map(s => s.trim()).filter(Boolean);
+        if (lines.length) {
+          info.publisher = lines.length > 1 ? lines[lines.length - 1] : "";
+          info.title = lines.length > 2 ? lines.slice(0, -1).join(" ") : lines[0];
+        }
+        info.icon = drawIcon(bn);
+      }
+      if (!info.title) info.title = internal;
+    } catch (e) { /* not a plain .nds: fall back to file name */ }
+    if (!info.title) info.title = cleanName(file.name);
+    return info;
+  }
+  function drawIcon(bn) {
+    const pal = [];
+    for (let i = 0; i < 16; i++) {
+      const c = u16(bn, 0x220 + i * 2);
+      pal.push([(c & 31) * 255 / 31, ((c >> 5) & 31) * 255 / 31, ((c >> 10) & 31) * 255 / 31]);
+    }
+    const cv = document.createElement("canvas");
+    cv.width = 32; cv.height = 32;
+    const ctx = cv.getContext("2d");
+    const img = ctx.createImageData(32, 32);
+    for (let ty = 0; ty < 4; ty++) for (let tx = 0; tx < 4; tx++) for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x += 2) {
+      const byte = bn[0x20 + (ty * 4 + tx) * 32 + y * 4 + x / 2];
+      [byte & 15, byte >> 4].forEach((p, k) => {
+        const px = tx * 8 + x + k, py = ty * 8 + y, i = (py * 32 + px) * 4;
+        const col = pal[p];
+        img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = p === 0 ? 0 : 255;
+      });
+    }
+    ctx.putImageData(img, 0, 0);
+    try { return cv.toDataURL("image/png"); } catch (e) { return ""; }
+  }
+  function cleanName(n) {
+    return n.replace(/\.(nds|zip)$/i, "").replace(/[\[(][^\])]*[\])]/g, "").replace(/[_]+/g, " ").replace(/^\d{3,4}\s*-\s*/, "").trim() || n;
+  }
+  function fmtSize(b) { return b >= 1048576 ? Math.round(b / 1048576) + "MB" : Math.max(1, Math.round(b / 1024)) + "KB"; }
+  function fmtWhen(t) {
+    if (!t) return "아직 안 함";
+    const d = Math.floor((Date.now() - t) / 86400000);
+    if (d <= 0) return "오늘";
+    if (d === 1) return "어제";
+    if (d < 30) return d + "일 전";
+    const dt = new Date(t);
+    return (dt.getMonth() + 1) + "/" + dt.getDate();
+  }
+
+  // ---------- UI ----------
+  const $ = id => document.getElementById(id);
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+
+  let openActions = null;
+  async function render() {
+    const roms = (await allRoms()).sort((a, b) => (b.lastPlayed || b.added) - (a.lastPlayed || a.added));
+    $("count").textContent = roms.length ? roms.length + "개" : "";
+    const list = $("list");
+    list.innerHTML = "";
+    if (!roms.length) { list.appendChild(emptyState()); return; }
+    for (const r of roms) list.appendChild(rowFor(r));
+  }
+
+  function cartEl(r) {
+    const c = document.createElement("div");
+    c.className = "cart";
+    if (r.icon) { const im = new Image(); im.src = r.icon; im.alt = ""; c.appendChild(im); }
+    else { const s = document.createElement("span"); s.className = "code"; s.textContent = r.code || "NDS"; c.appendChild(s); }
+    return c;
+  }
+
+  function rowFor(r) {
+    const wrap = document.createElement("div");
+    const row = document.createElement("div");
+    row.className = "row";
+    row.setAttribute("role", "button");
+    row.tabIndex = 0;
+    row.setAttribute("aria-label", r.title + " 실행");
+    row.appendChild(cartEl(r));
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.innerHTML = '<div class="title"></div><div class="sub"></div><div class="facts"></div>';
+    meta.querySelector(".title").textContent = r.title;
+    meta.querySelector(".sub").textContent = r.publisher || r.fileName;
+    meta.querySelector(".facts").textContent = [r.code, fmtSize(r.size), "최근 " + fmtWhen(r.lastPlayed)].filter(Boolean).join(" · ");
+    row.appendChild(meta);
+
+    const more = document.createElement("button");
+    more.className = "more";
+    more.setAttribute("aria-label", "게임 메뉴");
+    more.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+    row.appendChild(more);
+
+    const actions = document.createElement("div");
+    actions.className = "row-actions";
+    actions.hidden = true;
+    actions.innerHTML = '<button class="chip-btn" data-a="cancel">취소</button><button class="chip-btn danger" data-a="del">라이브러리에서 삭제</button>';
+    row.appendChild(actions);
+
+    const play = () => launch(r.id);
+    row.addEventListener("click", e => { if (!e.target.closest(".more, .row-actions")) play(); });
+    row.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); play(); } });
+    more.addEventListener("click", e => {
+      e.stopPropagation();
+      if (openActions && openActions !== actions) openActions.hidden = true;
+      actions.hidden = !actions.hidden;
+      openActions = actions.hidden ? null : actions;
+    });
+    actions.addEventListener("click", async e => {
+      e.stopPropagation();
+      const a = e.target.closest("button");
+      if (!a) return;
+      if (a.dataset.a === "del") { await deleteRom(r.id); toast("‘" + r.title + "’ 삭제함"); render(); }
+      else { actions.hidden = true; openActions = null; }
+    });
+    wrap.appendChild(row);
+    return wrap;
+  }
+
+  function emptyState() {
+    const d = document.createElement("div");
+    d.className = "empty";
+    d.innerHTML =
+      '<h2>가지고 있던 롬을 넣으면 여기에 카트리지처럼 쌓여</h2>' +
+      '<ol><li>위의 <b>롬 추가</b>를 눌러 아이폰 파일 앱에서 .nds 파일을 골라</li>' +
+      '<li>롬 안에 든 게임 아이콘이랑 제목을 자동으로 읽어와</li>' +
+      '<li>목록에서 게임을 누르면 바로 실행돼</li></ol>' +
+      '<div><div class="ghost-tag">예시</div><div class="row ghost"><div class="cart"><span class="code">ADAE</span></div>' +
+      '<div class="meta"><div class="title">내 게임 제목</div><div class="sub">퍼블리셔</div><div class="facts">ADAE · 64MB · 최근 오늘</div></div><span></span></div></div>';
+    return d;
+  }
+
+  // Settings sheet
+  function buildLayoutSeg() {
+    const seg = $("layoutSeg");
+    seg.innerHTML = "";
+    for (const L of LAYOUTS) {
+      const lab = document.createElement("label");
+      const rects = L.pic.map(p => `<rect x="${p[0]}" y="${p[1]}" width="${p[2]}" height="${p[3]}" rx="2"/>`).join("");
+      lab.innerHTML = `<input type="radio" name="layout" id="layout-${L.id}" value="${L.id}"><span><svg class="layout-pic" viewBox="0 0 44 30" aria-hidden="true">${rects}</svg>${L.name}<small>${L.note}</small></span>`;
+      seg.appendChild(lab);
+    }
+  }
+  function syncSettingsUI() {
+    const l = document.getElementById("layout-" + settings.layout); if (l) l.checked = true;
+  }
+  buildLayoutSeg();
+  syncSettingsUI();
+  $("openSettings").addEventListener("click", () => { $("settings").hidden = false; });
+  $("closeSettings").addEventListener("click", () => { $("settings").hidden = true; });
+  $("settings").addEventListener("click", e => { if (e.target.id === "settings") $("settings").hidden = true; });
+  $("settings").addEventListener("change", e => {
+    if (e.target.name === "layout") settings.layout = e.target.value;
+    saveSettings();
+  });
+
+  // Adding ROMs
+  $("addLabel").addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("romInput").click(); } });
+  $("romInput").addEventListener("change", async e => {
+    const files = [...e.target.files];
+    e.target.value = "";
+    let added = 0, memOnly = false;
+    for (const f of files) {
+      if (!/\.(nds|zip)$/i.test(f.name)) { toast(f.name + "은 .nds나 .zip 파일이 아니야"); continue; }
+      // the single-file page carries no unzip tool
+      if (/\.zip$/i.test(f.name) && document.getElementById("wasm-desmume2015")) { toast("zip은 파일 앱에서 눌러 압축을 푼 뒤 .nds를 넣어줘"); continue; }
+      const info = await parseRom(f);
+      const rec = {
+        id: (info.code || "X") + "-" + f.size + "-" + f.name,
+        fileName: f.name, size: f.size, added: Date.now(), lastPlayed: 0,
+        code: info.code, title: info.title, publisher: info.publisher, icon: info.icon,
+        // store a copy of the bytes, not the picked File: iOS can drop a File's link to
+        // the Files app after a relaunch, and the ROM then fails to load ("네트워크 오류")
+        blob: new Blob([await f.arrayBuffer()], { type: "application/octet-stream" })
+      };
+      const ok = await putRom(rec);
+      if (!ok) memOnly = true;
+      added++;
+    }
+    if (added) toast(memOnly ? "추가함 · 이 브라우저는 저장을 막아서 새로고침하면 사라져" : added + "개 추가함");
+    render();
+  });
+
+  // ---------- Player ----------
+  let current = null;
+  function layoutOf(id) { return resolveLayout(id); }
+  function layoutLabel() {
+    const L = resolveLayout(settings.layout);
+    return settings.layout === "auto" ? "자동 · " + L.name : L.name;
+  }
+  function applyLayout() {
+    const L = resolveLayout(settings.layout);
+    $("layoutBtnLabel").textContent = layoutLabel();
+    try { window.EJS_emulator.gameManager.setVariable(layoutKey(settings.core), layoutVal(settings.core, L)); } catch (e) {}
+    $("splitBtn").hidden = !L.compose;
+    if (!L.compose) $("splitPanel").hidden = true;
+    layoutComp();
+  }
+
+  // ---------- Drawing the two screens ourselves ----------
+  // The engine renders top+bottom stacked (256x384, aspect kept, centred in its canvas).
+  // We copy each half onto our own canvases, sized by the user's split, and forward touches
+  // on our bottom screen back to the engine canvas as mouse events at the matching point.
+  const comp = { layer: null, top: null, bot: null, raf: 0 };
+  function emuCanvas() { try { return window.EJS_emulator.canvas; } catch (e) { return null; } }
+  function contentRect(r) { // stacked image inside a box of size r (w,h)
+    const s = Math.min(r.width / 256, r.height / 384);
+    const w = 256 * s, h = 384 * s;
+    return { x: (r.width - w) / 2, y: (r.height - h) / 2, w, h };
+  }
+  function ensureComp() {
+    const cv = emuCanvas();
+    if (!cv || comp.layer) return !!comp.layer;
+    const layer = document.createElement("div");
+    layer.className = "comp";
+    layer.innerHTML = '<canvas class="comp-top"></canvas><canvas class="comp-bot"></canvas>';
+    cv.parentElement.appendChild(layer);
+    comp.layer = layer; comp.top = layer.children[0]; comp.bot = layer.children[1];
+    // touches anywhere on the layer reach the engine; on the drawn bottom screen they are remapped
+    let down = false;
+    const send = (type, e) => {
+      const L = resolveLayout(settings.layout);
+      const r = cv.getBoundingClientRect();
+      let cx = e.clientX, cy = e.clientY;
+      if (L.compose) {
+        const b = comp.bot.getBoundingClientRect();
+        const fx = Math.min(1, Math.max(0, (e.clientX - b.left) / b.width));
+        const fy = Math.min(1, Math.max(0, (e.clientY - b.top) / b.height));
+        const c = contentRect(r);
+        cx = r.left + c.x + fx * c.w;
+        cy = r.top + c.y + c.h / 2 + fy * c.h / 2;
+      }
+      cv.dispatchEvent(new MouseEvent(type, { clientX: cx, clientY: cy, screenX: cx, screenY: cy, bubbles: true, cancelable: true, view: window, button: 0, buttons: type === "mouseup" ? 0 : 1 }));
+    };
+    const hitsBot = e => { const b = comp.bot.getBoundingClientRect(); return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom; };
+    layer.addEventListener("pointerdown", e => {
+      if (resolveLayout(settings.layout).compose && !hitsBot(e)) return;
+      down = true; try { layer.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault(); send("mousedown", e);
+    });
+    layer.addEventListener("pointermove", e => { if (down) { e.preventDefault(); send("mousemove", e); } });
+    const up = e => { if (!down) return; down = false; e.preventDefault(); send("mouseup", e); };
+    layer.addEventListener("pointerup", up);
+    layer.addEventListener("pointercancel", up);
+    const loop = () => { comp.raf = requestAnimationFrame(loop); drawComp(); };
+    loop();
+    layoutComp();
+    return true;
+  }
+  function layoutComp() {
+    if (!comp.layer) return;
+    const L = resolveLayout(settings.layout);
+    comp.layer.classList.toggle("on", !!L.compose);
+    if (!L.compose) return;
+    const box = comp.layer.getBoundingClientRect();
+    const W = box.width, H = box.height;
+    const r = settings.split || 0.7;               // share of the width for the top (big) screen
+    const S = Math.min(W, H / (0.75 * Math.max(r, 1 - r)));
+    const wt = r * S, wb = (1 - r) * S;
+    const x0 = (W - S) / 2;
+    const place = (el, x, w) => {
+      const h = w * 0.75, y = (H - h) / 2;
+      el.style.left = x + "px"; el.style.top = y + "px"; el.style.width = w + "px"; el.style.height = h + "px";
+      const dpr = window.devicePixelRatio || 1;
+      el.width = Math.round(w * dpr); el.height = Math.round(h * dpr);
+    };
+    place(comp.top, x0, wt);
+    place(comp.bot, x0 + wt, wb);
+  }
+  function drawComp() {
+    const cv = emuCanvas();
+    if (!cv || !comp.layer || !comp.layer.classList.contains("on") || !cv.width) return;
+    const c = contentRect({ width: cv.width, height: cv.height });
+    [[comp.top, 0], [comp.bot, 1]].forEach(([dst, half]) => {
+      const ctx = dst.getContext("2d");
+      // shrink smoothly (keeps small text legible); enlarge with crisp pixels
+      ctx.imageSmoothingEnabled = dst.height < c.h / 2;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(cv, c.x, c.y + half * c.h / 2, c.w, c.h / 2, 0, 0, dst.width, dst.height);
+    });
+  }
+  window.addEventListener("resize", () => setTimeout(layoutComp, 60));
+
+  // WebGL normally discards each frame after showing it; keep it so we can copy from it.
+  (function () {
+    const orig = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (type, attrs) {
+      if (/webgl/i.test(type)) attrs = Object.assign({}, attrs || {}, { preserveDrawingBuffer: true });
+      return orig.call(this, type, attrs);
+    };
+  })();
+  window.matchMedia("(orientation: landscape)").addEventListener("change", () => {
+    if (current && settings.layout === "auto") setTimeout(applyLayout, 150);
+  });
+  function layoutKey(core) { return core === "melonds" ? "melonds_screen_layout" : "desmume_screens_layout"; }
+  function layoutVal(core, L) { return core === "melonds" ? L.melon : L.desmume; }
+
+  const loadedScripts = {};
+  function loadScript(src) {
+    if (!loadedScripts[src]) loadedScripts[src] = new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = res;
+      s.onerror = () => { delete loadedScripts[src]; rej(new Error(src)); };
+      document.head.appendChild(s);
+    });
+    return loadedScripts[src];
+  }
+
+  async function launch(id) {
+    if (current) return;
+    try {
+      toast("에뮬레이터 불러오는 중…");
+      if (typeof window.EmulatorJS !== "function") await loadScript("ejs/bundle.js");
+      if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + ".js");
+    } catch (e) {
+      toast("에뮬레이터 파일을 못 불러왔어. 네트워크 확인하고 다시 눌러줘");
+      return;
+    }
+    let rec;
+    try { rec = await getRom(id); } catch (e) {}
+    if (!rec || !rec.blob) { toast("롬 파일을 못 읽었어. 다시 추가해줘"); return; }
+    // ROMs added before V10 may point at a file iOS no longer lets us read
+    try { await rec.blob.slice(0, 16).arrayBuffer(); }
+    catch (e) { toast("이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)"); return; }
+    current = rec;
+    rec.lastPlayed = Date.now();
+    putRom(rec);
+
+    const core = settings.core;
+    const L = layoutOf(settings.layout);
+    $("layoutBtnLabel").textContent = layoutLabel();
+    $("library").hidden = true;
+    $("settings").hidden = true;
+    $("player").hidden = false;
+
+    // save states go into the browser: downloads are blocked inside the Claude viewer
+    const defaults = { "save-save-interval": "10", "save-state-location": "browser" };
+    defaults[layoutKey(core)] = layoutVal(core, L);
+    if (core === "melonds") {
+      defaults["melonds_touch_mode"] = "Touch";
+      defaults["melonds_hybrid_small_screen"] = "Bottom";
+    } else {
+      // touches arrive as absolute points (forwarded by our drawing layer)
+      defaults["desmume_pointer_type"] = "touch";
+      // lighter emulation on phones (tiny accuracy cost)
+      defaults["desmume_advanced_timing"] = "disabled";
+      defaults["desmume_screens_gap"] = "0";
+      // engine's own 3:1 hybrid, kept as a fallback layout
+      defaults["desmume_hybrid_layout_scale"] = "3";
+      defaults["desmume_hybrid_showboth_screens"] = "disabled";
+      defaults["desmume_hybrid_cursor_always_smallscreen"] = "enabled";
+    }
+
+    const config = {
+      gameUrl: URL.createObjectURL(rec.blob),
+      gameName: rec.title,
+      gameId: rec.id,
+      system: core,
+      dataPath: "ejs/",
+      color: "#f2b33d",
+      backgroundColor: "#000000",
+      startOnLoad: false,
+      startBtnName: "시작",
+      defaultOptions: defaults,
+      disableDatabases: true,
+      threads: false,
+      language: "ko-KO",
+      langJson: window.__EJS_LANG_KO || undefined
+    };
+    if (!config.langJson) delete config.language;
+    try {
+      window.EJS_emulator = new EmulatorJS("#game", config);
+      window.EJS_emulator.on("start", () => {
+        setTimeout(applyPadPos, 50);
+        setTimeout(() => { ensureComp(); applyLayout(); }, 80);
+        clearInterval(window.__ndspSave);
+        window.__ndspSave = setInterval(() => persistSaves(), 10000);
+      });
+    } catch (e) {
+      console.error(e);
+      toast("에뮬레이터를 시작하지 못했어");
+    }
+  }
+
+  $("layoutBtn").addEventListener("click", () => {
+    const i = LAYOUTS.findIndex(l => l.id === settings.layout);
+    settings.layout = LAYOUTS[(i + 1) % LAYOUTS.length].id;
+    saveSettings(); syncSettingsUI();
+    applyLayout();
+  });
+  // On-screen controls on/off (remembered). Off frees the touch screen underneath.
+  function applyPad() {
+    const on = settings.pad !== false;
+    $("player").classList.toggle("pad-off", !on);
+    $("padBtn").setAttribute("aria-pressed", String(on));
+    $("padBtnLabel").textContent = on ? "버튼 끄기" : "버튼 켜기";
+  }
+  $("padBtn").addEventListener("click", () => {
+    settings.pad = settings.pad === false;
+    saveSettings();
+    applyPad();
+  });
+  applyPad();
+
+  // ---------- Game speed ----------
+  // The phone, not the ratio, is the limit: while fast-forwarding, skip drawing frames so the
+  // CPU time goes to emulation. ratio 0 = as fast as the phone can go.
+  const SPEEDS = [
+    { label: "1x", ratio: 1, skip: "0" },
+    { label: "2x", ratio: 2, skip: "1" },
+    { label: "4x", ratio: 4, skip: "2" },
+    { label: "최대", ratio: 8, skip: "5" }
+  ];
+  let speedIdx = 0;
+  function applySpeed() {
+    const s = SPEEDS[speedIdx];
+    $("speedLabel").textContent = s.label;
+    $("speedBtn").setAttribute("aria-pressed", String(speedIdx === 0 ? "true" : "false"));
+    try {
+      const emu = window.EJS_emulator, gm = emu.gameManager;
+      gm.setVariable("desmume_frameskip", s.skip);
+      if (s.ratio === 1) { gm.toggleFastForward(0); emu.isFastForward = false; }
+      else { gm.setFastForwardRatio(s.ratio); gm.toggleFastForward(1); emu.isFastForward = true; }
+    } catch (e) {}
+  }
+  $("speedBtn").addEventListener("click", () => {
+    speedIdx = (speedIdx + 1) % SPEEDS.length;
+    applySpeed();
+    toast(speedIdx === 0 ? "보통 속도" : SPEEDS[speedIdx].label + " 속도");
+  });
+
+  // Screen split slider (share of the width for the top screen)
+  function syncSplit() {
+    const pct = Math.round((settings.split || 0.7) * 100);
+    $("splitRange").value = pct;
+    $("splitTop").textContent = pct + "%";
+    $("splitBot").textContent = (100 - pct) + "%";
+  }
+  $("splitBtn").addEventListener("click", () => { $("splitPanel").hidden = !$("splitPanel").hidden; syncSplit(); });
+  $("splitRange").addEventListener("input", e => {
+    settings.split = Number(e.target.value) / 100;
+    syncSplit(); layoutComp();
+  });
+  $("splitRange").addEventListener("change", saveSettings);
+  syncSplit();
+
+  // ---------- Moving the on-screen controls ----------
+  // Controls move in groups; offsets are stored as fractions of the screen, separately for portrait and landscape.
+  const PAD_GROUPS = {
+    dpad: ".ejs_dpad_main",
+    face: ".b_a, .b_b, .b_x, .b_y",
+    startsel: ".b_start, .b_select",
+    speed: ".b_speed_fast, .b_speed_slow",
+    l: ".b_l",
+    r: ".b_r"
+  };
+  const padKey = () => "ndsp-pad-" + (isLandscape() ? "land" : "port");
+  function loadPadPos() { try { return JSON.parse(localStorage.getItem(padKey()) || "{}"); } catch (e) { return {}; } }
+  function savePadPos(p) { try { localStorage.setItem(padKey(), JSON.stringify(p)); } catch (e) {} }
+  let padPos = {};
+  function padRoot() { return document.querySelector("#player .ejs_virtualGamepad_parent"); }
+  function groupOf(el) {
+    for (const g in PAD_GROUPS) { const hit = el.closest(PAD_GROUPS[g]); if (hit) return g; }
+    return null;
+  }
+  function setGroup(g, dx, dy) {
+    const root = padRoot(); if (!root) return;
+    root.querySelectorAll(PAD_GROUPS[g]).forEach(el => { el.style.translate = dx + "px " + dy + "px"; });
+  }
+  function applyPadPos() {
+    padPos = loadPadPos();
+    const W = window.innerWidth, H = window.innerHeight;
+    for (const g in PAD_GROUPS) {
+      const p = padPos[g] || [0, 0];
+      setGroup(g, p[0] * W, p[1] * H);
+    }
+  }
+  window.addEventListener("resize", () => { if (current) applyPadPos(); });
+
+  let editing = false, drag = null;
+  function pt(e) { const t = e.touches ? (e.touches[0] || e.changedTouches[0]) : e; return [t.clientX, t.clientY]; }
+  function onDown(e) {
+    if (!editing) return;
+    const g = groupOf(e.target);
+    e.preventDefault(); e.stopPropagation();
+    if (!g) return;
+    const [x, y] = pt(e);
+    const p = padPos[g] || [0, 0];
+    drag = { g, x, y, ox: p[0] * window.innerWidth, oy: p[1] * window.innerHeight };
+  }
+  function onMove(e) {
+    if (!editing) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!drag) return;
+    const [x, y] = pt(e);
+    setGroup(drag.g, drag.ox + x - drag.x, drag.oy + y - drag.y);
+    drag.nx = drag.ox + x - drag.x; drag.ny = drag.oy + y - drag.y;
+  }
+  function onUp(e) {
+    if (!editing) return;
+    e.preventDefault(); e.stopPropagation();
+    if (drag && drag.nx !== undefined) {
+      padPos[drag.g] = [drag.nx / window.innerWidth, drag.ny / window.innerHeight];
+      savePadPos(padPos);
+    }
+    drag = null;
+  }
+  // capture phase on the player, so the emulator never sees presses while editing
+  const opts = { capture: true, passive: false };
+  ["touchstart", "mousedown"].forEach(t => $("player").addEventListener(t, e => { if (editing && padRoot() && padRoot().contains(e.target)) onDown(e); }, opts));
+  ["touchmove", "mousemove"].forEach(t => $("player").addEventListener(t, e => { if (editing && drag) onMove(e); }, opts));
+  ["touchend", "touchcancel", "mouseup"].forEach(t => $("player").addEventListener(t, e => { if (editing && (drag || (padRoot() && padRoot().contains(e.target)))) onUp(e); }, opts));
+
+  function setEditing(on) {
+    editing = on;
+    drag = null;
+    $("player").classList.toggle("pad-edit", on);
+    $("editbar").hidden = !on;
+    try { on ? window.EJS_emulator.pause() : window.EJS_emulator.play(); } catch (e) {}
+    if (on && !padRoot()) toast("게임이 시작된 뒤에 옮길 수 있어");
+  }
+  $("moveBtn").addEventListener("click", () => setEditing(true));
+  $("padDone").addEventListener("click", () => { setEditing(false); toast("버튼 위치 저장함 (" + (isLandscape() ? "가로" : "세로") + ")"); });
+  $("padReset").addEventListener("click", () => { padPos = {}; savePadPos(padPos); applyPadPos(); });
+
+  // ---------- Keeping game saves ----------
+  // DeSmuME keeps its .dsv open while playing, so the emulator's own "write on close" never fires.
+  // Push the in-memory save folder to the browser's storage ourselves.
+  let syncing = false;
+  function persistSaves(done) {
+    const finish = () => { syncing = false; if (done) done(); };
+    try {
+      const gm = window.EJS_emulator && window.EJS_emulator.gameManager;
+      if (!gm || !gm.FS) return finish();
+      try { gm.saveSaveFiles(); } catch (e) {}
+      if (syncing) return done && setTimeout(done, 400);
+      syncing = true;
+      gm.FS.syncfs(false, err => { if (err) console.warn("save sync failed", err); finish(); });
+    } catch (e) { finish(); }
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") persistSaves(); });
+  window.addEventListener("pagehide", () => persistSaves());
+
+  $("backBtn").addEventListener("click", () => {
+    let left = false;
+    const go = () => { if (!left) { left = true; location.reload(); } };
+    persistSaves(go);
+    setTimeout(go, 2000);
+  });
+
+  render();
+})();
+</script>

@@ -139,6 +139,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .layout-pic rect { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.5; }
 .seg input:checked + span .layout-pic rect { stroke: var(--accent); }
 .note { color: var(--muted); font-size: 13px; margin: 0; }
+.lite-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; cursor: pointer; }
+.lite-card.on { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.lite-text { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.lite-text small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.switch { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--line); position: relative; margin: 0; cursor: pointer; transition: background .15s; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.switch:checked { background: var(--accent); }
+.switch:checked::after { transform: translateX(18px); }
 .backup-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
 .seg.seg3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .toggle { display: flex; gap: 10px; align-items: flex-start; }
@@ -318,6 +326,11 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     <input type="file" id="romInput" accept=".nds,.zip,application/octet-stream" multiple>
     <span class="hint">.nds 또는 .zip · 한 번 추가하면 이 기기에 보관돼</span>
   </div>
+
+  <label class="lite-card" for="optLite">
+    <span class="lite-text"><b>저사양 모드</b><small id="liteNote">느린 폰에서 끊기면 켜. 게임 중 10초 자동 저장, 화면 직접 그리기, 멀티스레드, 화면 필터를 꺼</small></span>
+    <input type="checkbox" id="optLite" role="switch" class="switch">
+  </label>
 
   <div class="backup-hint" id="backupHint" hidden>
     <span id="backupHintText">세이브를 아직 백업하지 않았어</span>
@@ -511,8 +524,11 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   const isLandscape = () => window.matchMedia("(orientation: landscape)").matches;
   // "auto" resolves to a concrete layout from the current orientation.
   function resolveLayout(id) {
-    if (id === "auto") return LAYOUTS.find(l => l.id === (isLandscape() ? "hybrid" : "stack"));
-    return LAYOUTS.find(l => l.id === id) || LAYOUTS[1];
+    let L = id === "auto" ? LAYOUTS.find(l => l.id === (isLandscape() ? "hybrid" : "stack"))
+                          : (LAYOUTS.find(l => l.id === id) || LAYOUTS[1]);
+    // low-spec mode: show the engine's own picture instead of redrawing the two screens every frame
+    if (L.compose && settings.lite) L = LAYOUTS.find(l => l.id === "hybrid3");
+    return L;
   }
 
   function loadSettings() {
@@ -990,7 +1006,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       toast("에뮬레이터 불러오는 중…");
       if (typeof window.EmulatorJS !== "function") await loadScript("ejs/bundle.js");
       // the multithreaded engine needs a cross-origin isolated page (home-screen app); otherwise the normal one
-      usingThreads = canUseThreads() && settings.threads !== false;
+      usingThreads = canUseThreads() && settings.threads !== false && !settings.lite;
       if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + (usingThreads ? "-thread" : "") + ".js");
       usingThreads = usingThreads && !!(window.__EJS_CORES[settings.core] || {}).threads;
     } catch (e) {
@@ -1066,7 +1082,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
         setTimeout(applyPadPos, 50);
         setTimeout(() => { ensureComp(); applyLayout(); }, 80);
         clearInterval(window.__ndspSave);
-        window.__ndspSave = setInterval(() => persistSaves(), 10000);
+        // low-spec mode skips the 10-second save during play; leaving the app or the game still saves
+        if (!settings.lite) window.__ndspSave = setInterval(() => persistSaves(), 10000);
       });
     } catch (e) {
       console.error(e);
@@ -1676,12 +1693,23 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 
   // ---------- screen filter ----------
   function applyFilter() {
-    const f = settings.filter || "pixel";
+    const f = settings.lite ? "pixel" : (settings.filter || "pixel");
     $("player").classList.toggle("filter-lcd", f === "lcd");
     try { window.EJS_emulator.enableShader(f === "smooth" ? "2xScaleHQ.glslp" : "disabled"); } catch (e) {}
-    const r = document.getElementById("filter-" + f); if (r) r.checked = true;
+    const r = document.getElementById("filter-" + (settings.filter || "pixel")); if (r) r.checked = true;
   }
   $("filterSeg").addEventListener("change", e => { settings.filter = e.target.value; saveSettings(); applyFilter(); });
+
+  // ---------- low-spec mode (set on the library screen, used at the next launch) ----------
+  function syncLite() {
+    $("optLite").checked = !!settings.lite;
+    document.querySelector(".lite-card").classList.toggle("on", !!settings.lite);
+  }
+  $("optLite").addEventListener("change", e => {
+    settings.lite = e.target.checked; saveSettings(); syncLite();
+    toast(settings.lite ? "저사양 모드 켬 · 게임을 실행하면 적용돼" : "저사양 모드 끔");
+  });
+  syncLite();
 
   // ---------- options ----------
   // ---------- multithreaded engine ----------
@@ -1690,7 +1718,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   function syncThreadNote() {
     $("optThreads").checked = settings.threads !== false;
     $("optThreads").disabled = !canUseThreads();
-    $("threadNote").textContent = canUseThreads()
+    $("threadNote").textContent = settings.lite ? "저사양 모드가 켜져 있어서 지금은 꺼진 채로 실행돼"
+      : canUseThreads()
       ? "3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가 (다음 실행부터)"
       : "이 화면에서는 쓸 수 없어. 홈 화면 앱에서만 켜져";
   }

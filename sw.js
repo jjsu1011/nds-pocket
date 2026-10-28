@@ -1,4 +1,4 @@
-const CACHE = "ndsp-6a377887ec";
+const CACHE = "ndsp-67bd7365f0";
 const FILES = ["./", "cores/desmume2015.js", "cores/desmume2015_libretro.gz.wasm", "ejs/bundle.js", "ejs/compression/extractzip.js", "icons/apple-touch-icon.png", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "index.html", "manifest.webmanifest"];
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES.map(f => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting()));

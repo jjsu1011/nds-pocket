@@ -156,6 +156,16 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .layout-pic rect { fill: var(--surface-2); stroke: var(--muted); stroke-width: 1.5; }
 .seg input:checked + span .layout-pic rect { stroke: var(--accent); }
 .note { color: var(--muted); font-size: 13px; margin: 0; }
+.backup-hint { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 14px; font-size: 13px; }
+.seg.seg3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.toggle { display: flex; gap: 10px; align-items: flex-start; }
+.toggle input { margin-top: 3px; accent-color: var(--accent); width: 18px; height: 18px; flex: none; }
+.toggle span { display: flex; flex-direction: column; gap: 2px; }
+.toggle small { color: var(--muted); font-size: 12px; line-height: 1.4; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+label.chip-btn { cursor: pointer; }
+.facts .pt { color: var(--accent); }
 .ver-card { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--bg); }
 .ver-row { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; font-variant-numeric: tabular-nums; }
 .ver-row span:first-child { color: var(--muted); }
@@ -167,6 +177,19 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .changes { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .changes li { line-height: 1.45; }
 #whatsnew .sheet fieldset + fieldset, #settings .chip-btn { align-self: flex-start; }
+.resume-opt { display: flex; gap: 12px; align-items: center; text-align: left; width: 100%; border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg); padding: 12px; }
+.resume-opt.primary { border-color: var(--accent); }
+.resume-opt span { display: flex; flex-direction: column; gap: 2px; }
+.resume-opt small { color: var(--muted); font-size: 12px; }
+.resume-opt img { width: 48px; height: 72px; object-fit: contain; background: #000; border-radius: 4px; image-rendering: pixelated; }
+.resume-opt img:not([src]) { display: none; }
+.cheat-list { display: flex; flex-direction: column; gap: 6px; }
+.cheat-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; }
+.cheat-item input { width: 18px; height: 18px; accent-color: var(--accent); }
+.cheat-item .cname { font-weight: 600; }
+.cheat-item code { display: block; color: var(--muted); font-size: 11px; white-space: pre-wrap; word-break: break-all; }
+.text-in { width: 100%; box-sizing: border-box; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px; }
+textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px; resize: vertical; }
 .update-bar {
   position: fixed; z-index: 60; left: 50%; transform: translateX(-50%);
   bottom: calc(16px + env(safe-area-inset-bottom, 0px));
@@ -195,7 +218,33 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 }
 .split-panel .row2 { display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
 .split-panel input[type=range] { width: 100%; accent-color: #f2b33d; }
-#player.pad-off:not(.pad-edit) .ejs_virtualGamepad_parent { display: none !important; }
+#player.pad-off:not(.pad-edit) .ejs_virtualGamepad_parent,
+#player.pad-controller:not(.pad-edit) .ejs_virtualGamepad_parent { display: none !important; }
+#player .ejs_virtualGamepad_parent > * { opacity: var(--pad-opacity, 1); }
+.lcd-overlay { position: absolute; inset: 0; pointer-events: none; display: none;
+  background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
+#player.filter-lcd .lcd-overlay { display: block; }
+.split-fill { align-self: center; border: 1px solid #f2b33d88; background: #22262d; color: #e8eaee; border-radius: 999px; padding: 5px 14px; font-size: 12px; }
+.slot-panel {
+  position: absolute; z-index: 8; left: 50%; transform: translateX(-50%);
+  top: calc(40px + env(safe-area-inset-top, 0px)); max-height: calc(100% - 56px); overflow-y: auto;
+  width: min(420px, calc(100% - 24px)); box-sizing: border-box;
+  background: #121417f2; border: 1px solid #ffffff22; border-radius: 14px; padding: 10px 12px; color: #e8eaee; font-size: 13px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.slot-head { display: flex; align-items: center; gap: 8px; }
+.slot-head .note { flex: 1; min-width: 0; font-size: 12px; }
+.slot-head button, .slot button { height: 30px; border-radius: 999px; border: 1px solid #ffffff33; background: #22262d; color: #e8eaee; padding: 0 12px; font-size: 12px; white-space: nowrap; }
+.slot-list { display: flex; flex-direction: column; gap: 6px; }
+.slot { display: grid; grid-template-columns: 40px 44px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px; border: 1px solid #ffffff14; border-radius: 10px; }
+.slot .num { font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
+.slot img, .slot .noimg { width: 44px; height: 66px; border-radius: 4px; background: #000; object-fit: contain; image-rendering: pixelated; }
+.slot .when { color: #8d95a3; font-size: 12px; min-width: 0; }
+.slot .save { border-color: #f2b33d88; }
+.slot button:disabled { opacity: .35; }
+.qb-hot { position: absolute; z-index: 4; left: 30%; width: 40%; top: 0; height: calc(34px + env(safe-area-inset-top, 0px)); display: none; }
+#player.qb-hidden .qb-hot { display: block; }
+#player.qb-hidden .quickbar { opacity: 0 !important; pointer-events: none; transition: opacity .3s; }
 /* keep the emulator's ☰ button and its menu bar clear of rounded corners and the notch */
 #player .ejs_virtualGamepad_open {
   top: calc(10px + env(safe-area-inset-top, 0px)) !important;
@@ -215,7 +264,8 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 #player.locked .quickbar > button:not(#lockBtn),
 #player.locked .ejs_virtualGamepad_open,
 #player.locked .ejs_menu_bar,
-#player.locked .b_speed_fast, #player.locked .b_speed_slow,
+#player.locked .b_speed_fast, #player.locked .b_speed_slow, #player.locked .b_speed_rewind,
+#player.locked .slot-panel,
 #player.locked .split-panel { display: none !important; }
 #player.locked .quickbar { opacity: 0.45; }
 #lockBtn.holding { background: #f2b33d55 !important; }
@@ -283,6 +333,10 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     <span class="hint">.nds 또는 .zip · 한 번 추가하면 이 기기에 보관돼</span>
   </div>
 
+  <div class="backup-hint" id="backupHint" hidden>
+    <span id="backupHintText">세이브를 아직 백업하지 않았어</span>
+    <button class="chip-btn" id="backupHintBtn" type="button">지금 백업</button>
+  </div>
   <p class="section-label"><span>라이브러리</span><span id="count"></span></p>
   <div id="list" class="list"></div>
 </div>
@@ -300,6 +354,32 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       <legend>화면 배치</legend>
       <div class="seg" id="layoutSeg"></div>
       <p class="note">게임 중에도 상단 <b>배치</b> 버튼으로 바로 바꿀 수 있어.</p>
+    </fieldset>
+
+    <fieldset>
+      <legend>화면 필터</legend>
+      <div class="seg seg3" id="filterSeg">
+        <label><input type="radio" name="filter" value="pixel" id="filter-pixel"><span>픽셀<small>또렷한 원래 도트</small></span></label>
+        <label><input type="radio" name="filter" value="smooth" id="filter-smooth"><span>부드럽게<small>계단 현상 완화</small></span></label>
+        <label><input type="radio" name="filter" value="lcd" id="filter-lcd"><span>DS 액정<small>화소 격자 느낌</small></span></label>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>게임 화면 옵션</legend>
+      <label class="toggle"><input type="checkbox" id="optAutohide"><span>상단 버튼 줄 자동 숨김<small>몇 초 뒤 숨고, 화면 맨 위 가운데를 누르면 다시 나와</small></span></label>
+      <label class="toggle"><input type="checkbox" id="optRewind"><span>되감기 (실험적)<small>게임 화면에 되감기 버튼이 생겨. 누르고 있는 동안 몇 초 전으로 돌아가. 메모리를 많이 써서 느려질 수 있어. 다음 실행부터 적용</small></span></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>세이브 백업</legend>
+      <p class="note">모든 게임의 세이브·이어하기·슬롯을 <b>NDS Pocket 세이브.zip</b> 한 파일로 묶어. 공유 창에서 롬 폴더를 골라 저장하고, 다음부터는 같은 이름으로 대치하면 파일이 늘어나지 않아. 압축을 풀면 게임별 폴더로 정리돼 있어.</p>
+      <p class="note" id="lastBackupNote"></p>
+      <div class="btn-row">
+        <button class="chip-btn" id="exportAll" type="button">전체 백업 내보내기</button>
+        <label class="chip-btn" for="importAll" tabindex="0">백업 가져오기</label>
+        <input type="file" id="importAll" accept=".zip,.json,.dsv,application/zip,application/json,application/octet-stream" class="visually-hidden">
+      </div>
     </fieldset>
 
     <fieldset>
@@ -335,6 +415,12 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     <button id="speedBtn" aria-label="게임 속도 바꾸기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 6l8 6-8 6zM12 6l8 6-8 6z"/></svg><span id="speedLabel">1x</span>
     </button>
+    <button id="slotBtn" aria-label="저장 슬롯">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span class="ql">저장</span>
+    </button>
+    <button id="swapBtn" aria-label="위아래 화면 바꾸기" aria-pressed="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4L4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg><span class="ql">화면 바꾸기</span>
+    </button>
     <button id="splitBtn" hidden aria-label="화면 크기">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="13" height="10" rx="1.5"/><rect x="17" y="10" width="5" height="4" rx="1"/></svg><span class="ql">화면 크기</span>
     </button>
@@ -348,7 +434,13 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   <div class="split-panel" id="splitPanel" hidden>
     <div class="row2"><span>위 화면 <b id="splitTop">70%</b></span><span>아래(터치) 화면 <b id="splitBot">30%</b></span></div>
     <input type="range" id="splitRange" min="50" max="85" step="1" value="70" aria-label="위 화면이 차지하는 가로 비율">
+    <button class="split-fill" id="splitFill" type="button">가로 꽉 채우기</button>
   </div>
+  <div class="slot-panel" id="slotPanel" hidden>
+    <div class="slot-head"><b>상태 저장</b><span class="note">슬롯을 골라 저장하거나 불러와</span><button id="slotClose" aria-label="닫기">닫기</button></div>
+    <div class="slot-list" id="slotList"></div>
+  </div>
+  <div class="qb-hot" id="qbHot" aria-hidden="true"></div>
   <div class="editbar" id="editbar" hidden>
     <div class="edit-top">
       <span>끌어서 옮기기 · 크기 조절</span>
@@ -358,10 +450,40 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     <label class="size-row"><span>L·R</span><input type="range" id="size-rl" min="60" max="180" step="5" value="100"><b id="size-rl-v">100%</b></label>
     <label class="size-row"><span>십자키</span><input type="range" id="size-dpad" min="60" max="180" step="5" value="100"><b id="size-dpad-v">100%</b></label>
     <label class="size-row"><span>A·B·X·Y</span><input type="range" id="size-face" min="60" max="180" step="5" value="100"><b id="size-face-v">100%</b></label>
+    <label class="size-row"><span>투명도</span><input type="range" id="padOpacity" min="20" max="100" step="5" value="100"><b id="padOpacity-v">100%</b></label>
   </div>
 </div>
 
 <div class="toast" id="toast" hidden></div>
+
+<div id="resumeSheet" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="resumeTitle">
+    <div class="sheet-head"><h2 id="resumeTitle">어디서부터 할까?</h2></div>
+    <button class="resume-opt primary" id="resumeYes" type="button">
+      <img id="resumeShot" alt="">
+      <span><b>이어하기</b><small id="resumeWhen"></small></span>
+    </button>
+    <button class="resume-opt" id="resumeNo" type="button"><span><b>처음 화면부터</b><small>게임 안 세이브(레포트)로 이어하기</small></span></button>
+  </div>
+</div>
+
+<div id="cheatSheet" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cheatTitle">
+    <div class="sheet-head">
+      <h2 id="cheatTitle">치트</h2>
+      <button class="icon-btn" id="cheatClose" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <p class="note" id="cheatGame"></p>
+    <div class="cheat-list" id="cheatList"></div>
+    <fieldset>
+      <legend>치트 추가</legend>
+      <input type="text" id="cheatName" class="text-in" placeholder="이름 (예: 무한 돈)" maxlength="40">
+      <textarea id="cheatCode" class="text-in" rows="4" placeholder="액션 리플레이(AR) 코드. 한 줄에 한 쌍씩&#10;예) 02000000 0001869F"></textarea>
+      <button class="add-btn small" id="cheatAdd" type="button">추가</button>
+      <p class="note">게임 판(한국판 등)에 맞는 코드를 써. 켜고 끄는 건 다음 실행부터 적용되고, 게임 중엔 ☰ → 치트에서 바로 바꿀 수 있어. 쓰기 전에 세이브해두는 게 안전해.</p>
+    </fieldset>
+  </div>
+</div>
 
 <div class="update-bar" id="updateBar" hidden role="status">
   <span id="updateText">새 버전을 받았어</span>
@@ -425,11 +547,13 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       try {
         // v2: list info in "roms", raw ROM bytes (ArrayBuffer, not Blob) in "romdata".
         // iOS home-screen apps often can't read Blobs back out of IndexedDB.
-        const r = indexedDB.open("nds-pocket", 2);
+        const r = indexedDB.open("nds-pocket", 3);
         r.onupgradeneeded = () => {
           const d = r.result;
           if (!d.objectStoreNames.contains("roms")) d.createObjectStore("roms", { keyPath: "id" });
           if (!d.objectStoreNames.contains("romdata")) d.createObjectStore("romdata", { keyPath: "id" });
+          // v3: save-state slots and the automatic "이어하기" state, key = romId + ":" + slot
+          if (!d.objectStoreNames.contains("states")) d.createObjectStore("states", { keyPath: "key" });
         };
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
@@ -442,7 +566,8 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       const t = d.transaction(store, mode);
       const s = t.objectStore(store);
       const out = fn(s);
-      t.oncomplete = () => res(out && out.result !== undefined ? out.result : out);
+      // a request's result (undefined when the key is missing), or whatever fn returned
+      t.oncomplete = () => res(out instanceof IDBRequest ? out.result : out);
       t.onerror = () => rej(t.error);
       t.onabort = () => rej(t.error);
     }));
@@ -567,6 +692,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   async function render() {
     const roms = (await allRoms()).sort((a, b) => (b.lastPlayed || b.added) - (a.lastPlayed || a.added));
     $("count").textContent = roms.length ? roms.length + "개" : "";
+    checkBackupHint();
     const list = $("list");
     list.innerHTML = "";
     if (!roms.length) { list.appendChild(emptyState()); return; }
@@ -595,7 +721,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     meta.innerHTML = '<div class="title"></div><div class="sub"></div><div class="facts"></div>';
     meta.querySelector(".title").textContent = r.title;
     meta.querySelector(".sub").textContent = r.publisher || r.fileName;
-    meta.querySelector(".facts").textContent = [r.code, fmtSize(r.size), "최근 " + fmtWhen(r.lastPlayed)].filter(Boolean).join(" · ");
+    meta.querySelector(".facts").textContent = [r.code, r.playMs > 60000 ? "플레이 " + fmtPlay(r.playMs) : fmtSize(r.size), "최근 " + fmtWhen(r.lastPlayed)].filter(Boolean).join(" · ");
     row.appendChild(meta);
 
     const more = document.createElement("button");
@@ -607,10 +733,10 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const actions = document.createElement("div");
     actions.className = "row-actions";
     actions.hidden = true;
-    actions.innerHTML = '<span class="hint-save">롬만 지워지고 세이브는 남아. 같은 롬을 다시 넣으면 이어서 할 수 있어</span><button class="chip-btn" data-a="cancel">취소</button><button class="chip-btn danger" data-a="del">롬 삭제</button>';
+    actions.innerHTML = '<button class="chip-btn" data-a="cheat">치트</button><button class="chip-btn" data-a="exp">세이브 내보내기</button><label class="chip-btn">세이브 가져오기<input type="file" class="visually-hidden" data-a="imp" accept=".dsv,.sav,application/octet-stream"></label><span class="hint-save">롬만 지워지고 세이브는 남아. 같은 롬을 다시 넣으면 이어서 할 수 있어</span><button class="chip-btn" data-a="cancel">취소</button><button class="chip-btn danger" data-a="del">롬 삭제</button>';
     row.appendChild(actions);
 
-    const play = () => launch(r.id);
+    const play = () => startGame(r);
     row.addEventListener("click", e => { if (!e.target.closest(".more, .row-actions")) play(); });
     row.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target === row) { e.preventDefault(); play(); } });
     more.addEventListener("click", e => {
@@ -621,8 +747,11 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     });
     actions.addEventListener("click", async e => {
       e.stopPropagation();
+      if (e.target.closest("label")) return; // 세이브 가져오기: let the file picker open
       const a = e.target.closest("button");
       if (!a) return;
+      if (a.dataset.a === "cheat") { openCheats(r); return; }
+      if (a.dataset.a === "exp") { exportGameSave(r); return; }
       if (a.dataset.a === "del") {
         // two taps: the first arms the button, the second deletes
         if (!a.classList.contains("armed")) {
@@ -634,6 +763,8 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       }
       else { actions.hidden = true; openActions = null; }
     });
+    actions.querySelector("[data-a=imp]").addEventListener("change", e => { const f = e.target.files[0]; e.target.value = ""; if (f) importGameSave(r, f); });
+    actions.addEventListener("click", e => e.stopPropagation());
     wrap.appendChild(row);
     return wrap;
   }
@@ -742,6 +873,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const layer = document.createElement("div");
     layer.className = "comp";
     layer.innerHTML = '<canvas class="comp-top"></canvas><canvas class="comp-bot"></canvas>';
+    const lcd = document.createElement("div"); lcd.className = "lcd-overlay"; cv.parentElement.appendChild(lcd);
     cv.parentElement.appendChild(layer);
     comp.layer = layer; comp.top = layer.children[0]; comp.bot = layer.children[1];
     // touches anywhere on the layer reach the engine; on the drawn bottom screen they are remapped
@@ -751,7 +883,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       const r = cv.getBoundingClientRect();
       let cx = e.clientX, cy = e.clientY;
       if (L.compose) {
-        const b = comp.bot.getBoundingClientRect();
+        const b = touchCanvas().getBoundingClientRect();
         const fx = Math.min(1, Math.max(0, (e.clientX - b.left) / b.width));
         const fy = Math.min(1, Math.max(0, (e.clientY - b.top) / b.height));
         const c = contentRect(r);
@@ -764,7 +896,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       cv.dispatchEvent(new MouseEvent(type, init));
       document.dispatchEvent(new MouseEvent(type, init));
     };
-    const hitsBot = e => { const b = comp.bot.getBoundingClientRect(); return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom; };
+    const hitsBot = e => { const b = touchCanvas().getBoundingClientRect(); return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom; };
     // real taps on our layer (and the click the browser adds after them) stop here too
     ["click", "mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"].forEach(t =>
       layer.addEventListener(t, e => e.stopPropagation()));
@@ -806,10 +938,11 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const cv = emuCanvas();
     if (!cv || !comp.layer || !comp.layer.classList.contains("on") || !cv.width) return;
     const c = contentRect({ width: cv.width, height: cv.height });
-    [[comp.top, 0], [comp.bot, 1]].forEach(([dst, half]) => {
+    const sw = settings.swap ? 1 : 0;
+    [[comp.top, sw], [comp.bot, 1 - sw]].forEach(([dst, half]) => {
       const ctx = dst.getContext("2d");
       // shrink smoothly (keeps small text legible); enlarge with crisp pixels
-      ctx.imageSmoothingEnabled = dst.height < c.h / 2;
+      ctx.imageSmoothingEnabled = settings.filter === "smooth" || dst.height < c.h / 2;
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(cv, c.x, c.y + half * c.h / 2, c.w, c.h / 2, 0, 0, dst.width, dst.height);
     });
@@ -840,7 +973,12 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   window.addEventListener("orientationchange", scheduleRelayout);
   if (window.visualViewport) window.visualViewport.addEventListener("resize", scheduleRelayout);
   function layoutKey(core) { return core === "melonds" ? "melonds_screen_layout" : "desmume_screens_layout"; }
-  function layoutVal(core, L) { return core === "melonds" ? L.melon : L.desmume; }
+  const SWAPPED = { "top/bottom": "bottom/top", "left/right": "right/left", "hybrid/top": "hybrid/bottom", "top only": "bottom only" };
+  function layoutVal(core, L) {
+    if (core === "melonds") return L.melon;
+    // our own two-screen drawing swaps by itself; engine layouts swap here
+    return settings.swap && !L.compose && SWAPPED[L.desmume] ? SWAPPED[L.desmume] : L.desmume;
+  }
 
   const loadedScripts = {};
   function loadScript(src) {
@@ -854,7 +992,8 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     return loadedScripts[src];
   }
 
-  async function launch(id) {
+  async function launch(id, opts) {
+    opts = opts || {};
     if (current) return;
     try {
       toast("에뮬레이터 불러오는 중…");
@@ -901,7 +1040,11 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       defaults["desmume_hybrid_cursor_always_smallscreen"] = "enabled";
     }
 
+    defaults["rewindEnabled"] = settings.rewind ? "enabled" : "disabled";
+    const myCheats = loadCheats(rec.id);
     const config = {
+      cheats: myCheats.map(c => [c.name, normCheat(c.code)]),
+      shaders: Object.assign({}, window.EJS_SHADERS || {}),
       gameUrl: romBytes,
       gameName: rec.title,
       gameId: rec.id,
@@ -921,6 +1064,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     try {
       window.EJS_emulator = new EmulatorJS("#game", config);
       window.EJS_emulator.on("start", () => {
+        afterStart(rec, opts);
         setTimeout(applyPadPos, 50);
         setTimeout(() => { ensureComp(); applyLayout(); }, 80);
         clearInterval(window.__ndspSave);
@@ -1027,7 +1171,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     dpad: ".ejs_dpad_main",
     face: ".b_a, .b_b, .b_x, .b_y",
     startsel: ".b_start, .b_select",
-    speed: ".b_speed_fast, .b_speed_slow",
+    speed: ".b_speed_fast, .b_speed_slow, .b_speed_rewind",
     l: ".b_l",
     r: ".b_r"
   };
@@ -1090,7 +1234,13 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     }
     syncSizeSliders();
   }
+  function applyOpacity() {
+    const o = padPos.__opacity || 1;
+    $("player").style.setProperty("--pad-opacity", String(o));
+    $("padOpacity").value = Math.round(o * 100); $("padOpacity-v").textContent = Math.round(o * 100) + "%";
+  }
   function syncSizeSliders() {
+    applyOpacity();
     ["rl", "dpad", "face"].forEach(k => {
       const v = Math.round(((padPos.__size && padPos.__size[k]) || 1) * 100);
       $("size-" + k).value = v; $("size-" + k + "-v").textContent = v + "%";
@@ -1168,18 +1318,410 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       gm.FS.syncfs(false, err => { if (err) console.warn("save sync failed", err); finish(); });
     } catch (e) { finish(); }
   }
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") persistSaves(); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") { saveAutoState(); flushPlayTime(); persistSaves(); }
+  });
   window.addEventListener("pagehide", () => persistSaves());
 
-  $("backBtn").addEventListener("click", () => {
+  $("backBtn").addEventListener("click", async () => {
     let left = false;
     const go = () => { if (!left) { left = true; location.reload(); } };
+    setTimeout(go, 3000);
+    try { await saveAutoState(); await flushPlayTime(); } catch (e) {}
     persistSaves(go);
-    setTimeout(go, 2000);
   });
 
+
+  // =====================================================================
+  // V18 features
+  // =====================================================================
+  function touchCanvas() { return settings.swap ? comp.top : comp.bot; } // the drawn canvas showing the DS touch screen
+  const fmtPlay = ms => { const m = Math.floor(ms / 60000), h = Math.floor(m / 60); return h ? h + "시간 " + (m % 60) + "분" : m + "분"; };
+  const b64 = u8 => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = t => { const b = atob(t), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  const stamp = () => { const d = new Date(), z = n => String(n).padStart(2, "0"); return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate()) + " " + z(d.getHours()) + z(d.getMinutes()); };
+  const safeName = t => String(t).replace(/[\\/:*?"<>|]+/g, " ").trim() || "game";
+
+  // ---------- save-state slots (ours, in IndexedDB "states") ----------
+  const SLOTS = 5;
+  const putState = rec => tx("states", "readwrite", s => s.put(rec));
+  const getState = key => tx("states", "readonly", s => s.get(key)).catch(() => null);
+  const allStates = () => tx("states", "readonly", s => s.getAll()).catch(() => []);
+  function grabState() { try { return window.EJS_emulator.gameManager.getState(); } catch (e) { return null; } }
+  function grabShot() {
+    // small picture of both screens for the slot list
+    try {
+      const cv = emuCanvas(); if (!cv || !cv.width) return "";
+      const c = contentRect({ width: cv.width, height: cv.height });
+      const t = document.createElement("canvas"); t.width = 64; t.height = 96;
+      t.getContext("2d").drawImage(cv, c.x, c.y, c.w, c.h, 0, 0, 64, 96);
+      return t.toDataURL("image/jpeg", 0.7);
+    } catch (e) { return ""; }
+  }
+  async function saveSlot(slot) {
+    const st = grabState(); if (!st || !current) { toast("지금은 저장할 수 없어"); return false; }
+    await putState({ key: current.id + ":" + slot, romId: current.id, slot, time: Date.now(), shot: grabShot(), data: st });
+    return true;
+  }
+  async function loadSlot(slot) {
+    const rec = current && await getState(current.id + ":" + slot);
+    if (!rec) { toast("빈 슬롯이야"); return; }
+    try { window.EJS_emulator.gameManager.loadState(rec.data); toast((slot === "auto" ? "이어하기 지점" : slot + "번") + " 불러옴"); }
+    catch (e) { toast("불러오지 못했어"); }
+  }
+  async function saveAutoState() { if (current && window.EJS_emulator && window.EJS_emulator.started) await saveSlot("auto"); }
+  async function renderSlots() {
+    const list = $("slotList"); list.innerHTML = "";
+    const keys = ["auto"].concat([...Array(SLOTS)].map((_, i) => String(i + 1)));
+    for (const k of keys) {
+      const rec = await getState(current.id + ":" + k);
+      const row = document.createElement("div"); row.className = "slot";
+      row.innerHTML = '<span class="num"></span><span class="pic"></span><span class="when"></span><button class="save"></button><button class="load">불러오기</button>';
+      row.querySelector(".num").textContent = k === "auto" ? "자동" : k;
+      const pic = row.querySelector(".pic");
+      if (rec && rec.shot) { const im = new Image(); im.src = rec.shot; im.alt = ""; pic.appendChild(im); } else { pic.className = "noimg"; }
+      row.querySelector(".when").textContent = rec ? fmtStamp(new Date(rec.time).toISOString()) : "비어 있음";
+      const sv = row.querySelector(".save");
+      if (k === "auto") { sv.textContent = "나갈 때 자동"; sv.disabled = true; } else sv.textContent = "저장";
+      sv.addEventListener("click", async () => { if (await saveSlot(k)) { toast(k + "번에 저장함"); renderSlots(); } });
+      const ld = row.querySelector(".load"); ld.disabled = !rec;
+      ld.addEventListener("click", () => { loadSlot(k); $("slotPanel").hidden = true; });
+      list.appendChild(row);
+    }
+  }
+  $("slotBtn").addEventListener("click", () => { const p = $("slotPanel"); p.hidden = !p.hidden; if (!p.hidden) renderSlots(); });
+  $("slotClose").addEventListener("click", () => { $("slotPanel").hidden = true; });
+
+  // ---------- 이어하기 ----------
+  async function startGame(r) {
+    const auto = await getState(r.id + ":auto");
+    if (!auto) return launch(r.id);
+    $("resumeWhen").textContent = fmtStamp(new Date(auto.time).toISOString()) + "에 나간 지점";
+    if (auto.shot) $("resumeShot").src = auto.shot; else $("resumeShot").removeAttribute("src");
+    $("resumeSheet").hidden = false;
+    $("resumeYes").onclick = () => { $("resumeSheet").hidden = true; launch(r.id, { resume: true }); };
+    $("resumeNo").onclick = () => { $("resumeSheet").hidden = true; launch(r.id); };
+  }
+  $("resumeSheet").addEventListener("click", e => { if (e.target.id === "resumeSheet") $("resumeSheet").hidden = true; });
+
+  // ---------- play time ----------
+  let playMark = 0;
+  async function flushPlayTime() {
+    if (!current || !playMark) return;
+    const now = Date.now(), add = now - playMark; playMark = now;
+    if (add <= 0 || add > 6 * 3600 * 1000) return;
+    current.playMs = (current.playMs || 0) + add;
+    try { await putRom(current); } catch (e) {}
+  }
+  setInterval(() => { if (document.visibilityState === "visible") flushPlayTime(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && current) playMark = Date.now(); });
+
+  // ---------- cheats (per game, ours) ----------
+  const cheatKey = id => "ndsp-cheats-" + id;
+  function loadCheats(id) { try { return JSON.parse(localStorage.getItem(cheatKey(id)) || "[]"); } catch (e) { return []; } }
+  function saveCheats(id, list) { try { localStorage.setItem(cheatKey(id), JSON.stringify(list)); } catch (e) {} }
+  // Action Replay: one "XXXXXXXX YYYYYYYY" pair per line; the engine takes lines joined with "+"
+  function normCheat(code) {
+    return String(code).toUpperCase().split(/\r?\n|\+/).map(l => l.replace(/[^0-9A-F]/g, "")).filter(l => l.length >= 16)
+      .map(l => l.slice(0, 8) + " " + l.slice(8, 16)).join("+");
+  }
+  let cheatRom = null;
+  function openCheats(r) { cheatRom = r; $("cheatGame").textContent = r.title; renderCheats(); $("cheatSheet").hidden = false; }
+  function renderCheats() {
+    const list = loadCheats(cheatRom.id), box = $("cheatList"); box.innerHTML = "";
+    if (!list.length) { box.innerHTML = '<p class="note">아직 치트가 없어. 아래에서 추가해.</p>'; return; }
+    list.forEach((c, i) => {
+      const row = document.createElement("label"); row.className = "cheat-item";
+      row.innerHTML = '<input type="checkbox"><span><span class="cname"></span><code></code></span><button class="chip-btn danger" type="button">삭제</button>';
+      row.querySelector("input").checked = !!c.on;
+      row.querySelector(".cname").textContent = c.name;
+      row.querySelector("code").textContent = normCheat(c.code).split("+").join("\n");
+      row.querySelector("input").addEventListener("change", e => { list[i].on = e.target.checked; saveCheats(cheatRom.id, list); toast(e.target.checked ? "켬 · 다음 실행부터 적용" : "끔 · 다음 실행부터 적용"); });
+      row.querySelector("button").addEventListener("click", e => { e.preventDefault(); list.splice(i, 1); saveCheats(cheatRom.id, list); renderCheats(); });
+      box.appendChild(row);
+    });
+  }
+  $("cheatAdd").addEventListener("click", () => {
+    const name = $("cheatName").value.trim(), code = $("cheatCode").value;
+    if (!name) { toast("치트 이름을 적어줘"); return; }
+    if (!normCheat(code)) { toast("코드를 못 읽었어. 16자리 숫자·영문(A~F) 한 쌍씩 한 줄에 적어줘"); return; }
+    const list = loadCheats(cheatRom.id); list.push({ name, code, on: true }); saveCheats(cheatRom.id, list);
+    $("cheatName").value = ""; $("cheatCode").value = ""; renderCheats(); toast("추가함 · 다음 실행부터 적용");
+  });
+  $("cheatClose").addEventListener("click", () => { $("cheatSheet").hidden = true; });
+  $("cheatSheet").addEventListener("click", e => { if (e.target.id === "cheatSheet") $("cheatSheet").hidden = true; });
+  function applyMyCheats(rec) {
+    // turn on the ones marked on, through the emulator's own cheat list (it re-applies them itself)
+    try {
+      const emu = window.EJS_emulator, mine = loadCheats(rec.id);
+      if (!mine.length) return;
+      emu.cheats.forEach(c => { const m = mine.find(x => x.name === c.desc && normCheat(x.code) === c.code); if (m) c.checked = !!m.on; });
+      emu.updateCheatUI();
+    } catch (e) {}
+  }
+
+  // ---------- game-save backup ----------
+  // Game saves live in the engine's IndexedDB folder "/data/saves" (store FILE_DATA, key = path).
+  const SAVE_DIR = "/data/saves/DeSmuME 2015";
+  function savesDb() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open("/data/saves", 21);
+      r.onupgradeneeded = () => { const s = r.result.createObjectStore("FILE_DATA"); s.createIndex("timestamp", "timestamp", { unique: false }); };
+      r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+    });
+  }
+  async function savesTx(mode, fn) {
+    const d = await savesDb();
+    return new Promise((res, rej) => { const t = d.transaction("FILE_DATA", mode); const out = fn(t.objectStore("FILE_DATA")); t.oncomplete = () => { d.close(); res(out instanceof IDBRequest ? out.result : out); }; t.onerror = () => rej(t.error); });
+  }
+  async function readAllSaves() {
+    const d = await savesDb();
+    return new Promise(res => {
+      const out = [], t = d.transaction("FILE_DATA", "readonly");
+      t.objectStore("FILE_DATA").openCursor().onsuccess = e => { const c = e.target.result; if (!c) return; if (c.value && c.value.contents) out.push({ path: c.key, data: c.value.contents }); c.continue(); };
+      t.oncomplete = () => { d.close(); res(out); };
+    });
+  }
+  async function writeSave(path, bytes) {
+    const now = new Date();
+    await savesTx("readwrite", s => {
+      s.put({ timestamp: now, mode: 16877 }, "/data/saves");
+      s.put({ timestamp: now, mode: 16877 }, SAVE_DIR);
+      s.put({ timestamp: now, mode: 33206, contents: bytes }, path);
+    });
+  }
+  const savePathFor = r => SAVE_DIR + "/" + r.title + ".dsv";
+  // Hand the viewer a file: share sheet where available (iOS → 파일에 저장), else a download link.
+  async function offerFile(name, bytes, type) {
+    // inside the Claude viewer (a framed page) both sharing and downloads are blocked
+    if (window.self !== window.top) { toast("Claude 앱 안에서는 파일을 내보낼 수 없어. 홈 화면 앱에서 해줘"); return false; }
+    const file = new File([bytes], name, { type });
+    try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return true; } } catch (e) { if (e && e.name === "AbortError") return false; }
+    try { const a = document.createElement("a"); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); return true; }
+    catch (e) { toast("이 화면에서는 파일을 내보낼 수 없어. 홈 화면 앱에서 해줘"); return false; }
+  }
+  async function exportGameSave(r) {
+    try {
+      const all = await readAllSaves(), hit = all.find(x => x.path === savePathFor(r));
+      if (!hit) { toast("이 게임의 세이브가 아직 없어. 게임 안에서 레포트를 먼저 써줘"); return; }
+      await offerFile(safeName(r.title) + ".dsv", hit.data, "application/octet-stream");
+    } catch (e) { toast("세이브를 읽지 못했어"); }
+  }
+  async function importGameSave(r, f) {
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      if (bytes.length < 512) { toast("세이브 파일이 아닌 것 같아"); return; }
+      await writeSave(savePathFor(r), bytes);
+      toast("‘" + r.title + "’ 세이브를 가져왔어. 게임을 켜면 적용돼");
+    } catch (e) { toast("세이브를 가져오지 못했어"); }
+  }
+  // ---- tiny zip (store for writing; store or deflate for reading) ----
+  const CRC_T = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u) { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC_T[(c ^ u[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function makeZip(files) { // [{name, data: Uint8Array}]
+    const enc = new TextEncoder(), parts = [], central = [];
+    const d = new Date(), dt = ((d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1)) & 0xFFFF, dd = (((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate()) & 0xFFFF;
+    let off = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name), data = f.data, crc = crc32(data);
+      const h = new DataView(new ArrayBuffer(30));
+      h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+      h.setUint16(10, dt, true); h.setUint16(12, dd, true); h.setUint32(14, crc, true); h.setUint32(18, data.length, true); h.setUint32(22, data.length, true);
+      h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+      parts.push(new Uint8Array(h.buffer), name, data);
+      const c = new DataView(new ArrayBuffer(46));
+      c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+      c.setUint16(12, dt, true); c.setUint16(14, dd, true); c.setUint32(16, crc, true); c.setUint32(20, data.length, true); c.setUint32(24, data.length, true);
+      c.setUint16(28, name.length, true); c.setUint32(42, off, true);
+      central.push(new Uint8Array(c.buffer), name);
+      off += 30 + name.length + data.length;
+    }
+    const csize = central.reduce((n, a) => n + a.length, 0);
+    const e = new DataView(new ArrayBuffer(22));
+    e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, csize, true); e.setUint32(16, off, true);
+    return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: "application/zip" });
+  }
+  async function readZip(buf) {
+    const u = new Uint8Array(buf), v = new DataView(buf), dec = new TextDecoder();
+    let e = -1; for (let i = u.length - 22; i >= Math.max(0, u.length - 66000); i--) if (v.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error("not a zip");
+    const n = v.getUint16(e + 10, true); let p = v.getUint32(e + 16, true); const out = [];
+    for (let k = 0; k < n; k++) {
+      if (v.getUint32(p, true) !== 0x02014b50) break;
+      const method = v.getUint16(p + 10, true), csize = v.getUint32(p + 20, true);
+      const nl = v.getUint16(p + 28, true), xl = v.getUint16(p + 30, true), cl = v.getUint16(p + 32, true), lo = v.getUint32(p + 42, true);
+      const name = dec.decode(u.subarray(p + 46, p + 46 + nl));
+      const start = lo + 30 + v.getUint16(lo + 26, true) + v.getUint16(lo + 28, true);
+      let data = u.slice(start, start + csize);
+      if (method === 8) data = new Uint8Array(await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+      else if (method !== 0) data = null;
+      if (data && !name.endsWith("/")) out.push({ name, data });
+      p += 46 + nl + xl + cl;
+    }
+    return out;
+  }
+
+  // ---- whole backup: one file, a folder per game inside ----
+  const BACKUP_NAME = "NDS Pocket 세이브.zip", BACKUP_ROOT = "NDS Pocket 세이브/";
+  const slotFile = slot => slot === "auto" ? "이어하기.state" : "슬롯 " + slot + ".state";
+  async function exportAllZip() {
+    const saves = await readAllSaves(), states = await allStates(), roms = await allRoms();
+    if (!saves.length && !states.length) { toast("아직 백업할 세이브가 없어"); return; }
+    const byId = {}; roms.forEach(r => { byId[r.id] = r; });
+    const files = [], manifest = { app: "NDS Pocket", version: APP_VERSION, exported: new Date().toISOString(), games: roms.map(r => ({ id: r.id, title: r.title, playMs: r.playMs || 0 })), files: [], cheats: {} };
+    roms.forEach(r => { const c = loadCheats(r.id); if (c.length) manifest.cheats[r.id] = c; });
+    for (const x of saves) {
+      const base = x.path.split("/").pop(), title = base.replace(/\.[^.]+$/, "");
+      const zipName = BACKUP_ROOT + safeName(title) + "/" + safeName(base);
+      files.push({ name: zipName, data: x.data }); manifest.files.push({ zip: zipName, kind: "save", path: x.path });
+    }
+    for (const x of states) {
+      const title = (byId[x.romId] && byId[x.romId].title) || x.romId;
+      const zipName = BACKUP_ROOT + safeName(title) + "/" + slotFile(x.slot);
+      files.push({ name: zipName, data: x.data instanceof Uint8Array ? x.data : new Uint8Array(x.data) });
+      manifest.files.push({ zip: zipName, kind: "state", key: x.key, romId: x.romId, slot: x.slot, time: x.time, shot: x.shot });
+    }
+    files.push({ name: BACKUP_ROOT + "manifest.json", data: new TextEncoder().encode(JSON.stringify(manifest, null, 1)) });
+    const ok = await offerFile(BACKUP_NAME, makeZip(files), "application/zip");
+    if (ok) { settings.lastBackup = Date.now(); saveSettings(); syncBackupNote(); render(); }
+  }
+  async function importBackupFile(f) {
+    const name = f.name.toLowerCase(); let nSave = 0, nState = 0;
+    if (name.endsWith(".dsv")) { // a single game save: goes to the game with that title
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      await writeSave(SAVE_DIR + "/" + f.name.replace(/\.dsv$/i, "") + ".dsv", bytes); nSave = 1;
+    } else if (name.endsWith(".json")) { // backups from V18 test builds
+      const pack = JSON.parse(await f.text()); if (pack.app !== "NDS Pocket") throw new Error("not ours");
+      for (const x of pack.saves || []) { await writeSave(x.path, unb64(x.data)); nSave++; }
+      for (const x of pack.states || []) { await putState({ key: x.key, romId: x.romId, slot: x.slot, time: x.time, shot: x.shot, data: unb64(x.data) }); nState++; }
+      for (const id in pack.cheats || {}) saveCheats(id, pack.cheats[id]);
+    } else {
+      const entries = await readZip(await f.arrayBuffer());
+      const man = entries.find(x => x.name.endsWith("manifest.json"));
+      const data = {}; entries.forEach(x => { data[x.name] = x.data; });
+      if (man) {
+        const m = JSON.parse(new TextDecoder().decode(man.data)); if (m.app !== "NDS Pocket") throw new Error("not ours");
+        for (const it of m.files || []) {
+          const bytes = data[it.zip]; if (!bytes) continue;
+          if (it.kind === "save") { await writeSave(it.path, bytes); nSave++; }
+          else if (it.kind === "state") { await putState({ key: it.key, romId: it.romId, slot: it.slot, time: it.time, shot: it.shot, data: bytes }); nState++; }
+        }
+        for (const id in m.cheats || {}) saveCheats(id, m.cheats[id]);
+        const roms = await allRoms();
+        for (const g of m.games || []) { const r = roms.find(x => x.id === g.id); if (r && g.playMs > (r.playMs || 0)) { r.playMs = g.playMs; await putRom(r); } }
+      } else { // a zip without our manifest: take any .dsv inside by file name
+        for (const x of entries) if (/\.dsv$/i.test(x.name)) { await writeSave(SAVE_DIR + "/" + x.name.split("/").pop(), x.data); nSave++; }
+      }
+    }
+    if (!nSave && !nState) throw new Error("empty");
+    toast("가져왔어 · 게임 세이브 " + nSave + "개, 상태 저장 " + nState + "개");
+    render();
+  }
+  function syncBackupNote() {
+    const t = settings.lastBackup;
+    $("lastBackupNote").textContent = t ? "마지막 백업: " + fmtStamp(new Date(t).toISOString()) : "아직 백업한 적 없어";
+  }
+  // remind in the library when there are saves and the last backup is old (or never)
+  async function checkBackupHint() {
+    try {
+      const n = (await readAllSaves()).length + (await allStates()).length;
+      const age = settings.lastBackup ? Date.now() - settings.lastBackup : Infinity;
+      if (n && age > 3 * 86400000) {
+        $("backupHintText").textContent = settings.lastBackup ? "마지막 백업이 " + Math.floor(age / 86400000) + "일 전이야" : "세이브를 아직 백업하지 않았어";
+        $("backupHint").hidden = false;
+      } else $("backupHint").hidden = true;
+    } catch (e) { $("backupHint").hidden = true; }
+  }
+  $("exportAll").addEventListener("click", () => exportAllZip().catch(() => toast("백업을 만들지 못했어")));
+  $("backupHintBtn").addEventListener("click", () => exportAllZip().catch(() => toast("백업을 만들지 못했어")));
+  $("importAll").addEventListener("change", async e => {
+    const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+    try { await importBackupFile(f); } catch (err) { toast("NDS Pocket 백업 파일이 아니거나 읽지 못했어"); }
+  });
+  $("openSettings").addEventListener("click", syncBackupNote);
+  syncBackupNote();
+
+  // ---------- controller ----------
+  function syncController() {
+    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+    $("player").classList.toggle("pad-controller", pads.length > 0);
+    return pads.length;
+  }
+  window.addEventListener("gamepadconnected", e => { syncController(); toast("컨트롤러 연결됨 · 화면 버튼을 숨겼어 (" + (e.gamepad.id || "").split("(")[0].trim().slice(0, 24) + ")"); });
+  window.addEventListener("gamepaddisconnected", () => { if (!syncController()) toast("컨트롤러 연결 끊김 · 화면 버튼을 다시 보여줄게"); });
+
+  // ---------- screen filter ----------
+  function applyFilter() {
+    const f = settings.filter || "pixel";
+    $("player").classList.toggle("filter-lcd", f === "lcd");
+    try { window.EJS_emulator.enableShader(f === "smooth" ? "2xScaleHQ.glslp" : "disabled"); } catch (e) {}
+    const r = document.getElementById("filter-" + f); if (r) r.checked = true;
+  }
+  $("filterSeg").addEventListener("change", e => { settings.filter = e.target.value; saveSettings(); applyFilter(); });
+
+  // ---------- options ----------
+  function syncOptions() {
+    $("optAutohide").checked = settings.autohide !== false;
+    $("optRewind").checked = !!settings.rewind;
+    const f = document.getElementById("filter-" + (settings.filter || "pixel")); if (f) f.checked = true;
+  }
+  $("optAutohide").addEventListener("change", e => { settings.autohide = e.target.checked; saveSettings(); showQuickbar(); });
+  $("optRewind").addEventListener("change", e => { settings.rewind = e.target.checked; saveSettings(); toast("다음 게임 실행부터 적용돼"); });
+  syncOptions();
+
+  // ---------- quick bar auto-hide ----------
+  let qbTimer = 0;
+  function showQuickbar() {
+    $("player").classList.remove("qb-hidden");
+    clearTimeout(qbTimer);
+    if (settings.autohide === false) return;
+    qbTimer = setTimeout(() => {
+      // stay visible while a panel is open or the controls are being edited
+      if (!$("slotPanel").hidden || !$("splitPanel").hidden || editing) return showQuickbar();
+      $("player").classList.add("qb-hidden");
+    }, 4000);
+  }
+  $("qbHot").addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); showQuickbar(); });
+  document.querySelector(".quickbar").addEventListener("pointerdown", showQuickbar);
+
+  // ---------- swap screens ----------
+  function syncSwap() { $("swapBtn").setAttribute("aria-pressed", String(!settings.swap)); }
+  $("swapBtn").addEventListener("click", () => {
+    settings.swap = !settings.swap; saveSettings(); syncSwap();
+    applyLayout(); toast(settings.swap ? "아래(터치) 화면을 크게" : "위 화면을 크게");
+  });
+  syncSwap();
+
+  // ---------- 가로 꽉 채우기 ----------
+  $("splitFill").addEventListener("click", () => {
+    if (!comp.layer) return;
+    const b = comp.layer.getBoundingClientRect();
+    const r = b.height / (0.75 * b.width); // two screens side by side exactly as wide as the screen
+    if (r < 0.5) { toast("이 화면은 너무 넓어서 양옆을 다 채울 수 없어. 50%가 가장 넓어"); settings.split = 0.5; }
+    else settings.split = Math.min(0.85, Math.floor(r * 100) / 100); // round down, or the pair is a hair too tall and stops short of the edges
+    saveSettings(); syncSplit(); layoutComp();
+  });
+
+  // ---------- button opacity ----------
+  $("padOpacity").addEventListener("input", e => {
+    padPos.__opacity = Number(e.target.value) / 100;
+    $("padOpacity-v").textContent = e.target.value + "%";
+    $("player").style.setProperty("--pad-opacity", String(padPos.__opacity));
+  });
+  $("padOpacity").addEventListener("change", () => savePadPos(padPos));
+
+  // ---------- after the game starts ----------
+  function afterStart(rec, opts) {
+    playMark = Date.now();
+    applyMyCheats(rec);
+    syncController();
+    setTimeout(applyFilter, 200);
+    showQuickbar();
+    if (opts.resume) setTimeout(() => loadSlot("auto"), 400);
+  }
+
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V17", "changes": {"V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T12:32+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V18", "changes": {"V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "되감기 (실험적): 설정에서 켜면 게임 화면에 되감기 버튼이 생겨", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T13:00+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

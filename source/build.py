@@ -64,6 +64,14 @@ def patched_emulator():
         '                if (fileName.endsWith(".wasm")) {\n                    return URL.createObjectURL(new Blob([wasmData]',
         '                if (fileName.endsWith(".wasm") && window.__EJS_WASM_URL) return window.__EJS_WASM_URL;\n'
         '                if (fileName.endsWith(".wasm")) {\n                    return URL.createObjectURL(new Blob([wasmData]')
+    # 2b) Only cores that ship with the page may be chosen: a saved pick of another core
+    #     (e.g. melonds) made every launch try to download it and fail with "Network Error".
+    s = must_replace(s,
+        '        if (cores[gen] && cores[gen].includes(this.preGetSetting("retroarch_core"))) {',
+        '        if (cores[gen] && cores[gen].includes(this.preGetSetting("retroarch_core")) && (!window.__EJS_CORES || window.__EJS_CORES[this.preGetSetting("retroarch_core")])) {')
+    s = must_replace(s,
+        '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1) {',
+        '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1 && !window.__EJS_CORES) {')
     # 3b) Hand emscripten the unpacked engine bytes directly (no URL fetch).
     s = must_replace(s, "noInitialRun: true,", "noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN,")
     # 4) No update check against an outside host.

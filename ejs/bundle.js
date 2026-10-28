@@ -68,7 +68,7 @@
             return core;
         }
         const gen = this.getCore(true);
-        if (cores[gen] && cores[gen].includes(this.preGetSetting("retroarch_core"))) {
+        if (cores[gen] && cores[gen].includes(this.preGetSetting("retroarch_core")) && (!window.__EJS_CORES || window.__EJS_CORES[this.preGetSetting("retroarch_core")])) {
             return this.preGetSetting("retroarch_core");
         }
         if (cores[core]) {
@@ -4814,7 +4814,7 @@
         }
         const cores = this.getCores();
         const core = cores[this.getCore(true)];
-        if (core && core.length > 1) {
+        if (core && core.length > 1 && !window.__EJS_CORES) {
             addToMenu(this.localization("Core" + " (" + this.localization("Requires restart") + ")"), "retroarch_core", core, this.getCore(), home);
         }
         if (typeof window.SharedArrayBuffer === "function" && !this.requiresThreads(this.getCore())) {

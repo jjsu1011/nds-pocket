@@ -218,7 +218,7 @@
         this.isFastForward = false;
         this.isSlowMotion = false;
         this.failedToStart = false;
-        this.rewindEnabled = this.preGetSetting("rewindEnabled") === "enabled";
+        this.rewindEnabled = false;
         this.touch = false;
         this.cheats = [];
         this.started = false;
@@ -4996,7 +4996,7 @@
             "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0", "5.5", "6.0", "6.5", "7.0", "7.5", "8.0", "8.5", "9.0", "9.5", "10.0"
         ], "3.0", speedOptions, true);
 
-        addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {
+        if (false) addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {
             "enabled": this.localization("Enabled"),
             "disabled": this.localization("Disabled")
         }, "disabled", speedOptions, true);

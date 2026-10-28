@@ -72,6 +72,13 @@ def patched_emulator():
     s = must_replace(s,
         '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1) {',
         '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1 && !window.__EJS_CORES) {')
+    # 2c) No rewind: ignore any saved "rewindEnabled" and drop it from the ☰ settings menu.
+    s = must_replace(s,
+        '        this.rewindEnabled = this.preGetSetting("rewindEnabled") === "enabled";',
+        '        this.rewindEnabled = false;')
+    s = must_replace(s,
+        '        addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {',
+        '        if (false) addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {')
     # 3b) Hand emscripten the unpacked engine bytes directly (no URL fetch).
     s = must_replace(s, "noInitialRun: true,", "noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN,")
     # 4) No update check against an outside host.

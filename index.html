@@ -20,7 +20,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
 /* Layout: one-screen app. Library = list of cartridges (DraStic-style rows), Player = black stage with a floating quick bar. */
 :root {
@@ -367,6 +367,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 
     <fieldset>
       <legend>게임 화면 옵션</legend>
+      <label class="toggle"><input type="checkbox" id="optThreads"><span>멀티스레드 엔진<small id="threadNote">3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가</small></span></label>
       <label class="toggle"><input type="checkbox" id="optAutohide"><span>상단 버튼 줄 자동 숨김<small>몇 초 뒤 숨고, 화면 맨 위 가운데를 누르면 다시 나와</small></span></label>
     </fieldset>
 
@@ -997,7 +998,10 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try {
       toast("에뮬레이터 불러오는 중…");
       if (typeof window.EmulatorJS !== "function") await loadScript("ejs/bundle.js");
-      if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + ".js");
+      // the multithreaded engine needs a cross-origin isolated page (home-screen app); otherwise the normal one
+      usingThreads = canUseThreads() && settings.threads !== false;
+      if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + (usingThreads ? "-thread" : "") + ".js");
+      usingThreads = usingThreads && !!(window.__EJS_CORES[settings.core] || {}).threads;
     } catch (e) {
       toast("에뮬레이터 파일을 못 불러왔어. 네트워크 확인하고 다시 눌러줘");
       return;
@@ -1032,6 +1036,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       // accurate timing and no frame skipping: skipping left half-drawn 3D (black boxes, broken sprites)
       defaults["desmume_advanced_timing"] = "enabled";
       defaults["desmume_frameskip"] = "0";
+      // 3D drawing threads: the A18 Pro has two performance cores
+      defaults["desmume_num_cores"] = usingThreads ? "2" : "1";
       defaults["desmume_screens_gap"] = "0";
       // engine's own 3:1 hybrid, kept as a fallback layout
       defaults["desmume_hybrid_layout_scale"] = "3";
@@ -1666,6 +1672,20 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   $("filterSeg").addEventListener("change", e => { settings.filter = e.target.value; saveSettings(); applyFilter(); });
 
   // ---------- options ----------
+  // ---------- multithreaded engine ----------
+  let usingThreads = false;
+  function canUseThreads() { return !!window.crossOriginIsolated && typeof SharedArrayBuffer === "function" && !document.getElementById("wasm-desmume2015"); }
+  function syncThreadNote() {
+    $("optThreads").checked = settings.threads !== false;
+    $("optThreads").disabled = !canUseThreads();
+    $("threadNote").textContent = canUseThreads()
+      ? "3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가 (다음 실행부터)"
+      : "이 화면에서는 쓸 수 없어. 홈 화면 앱에서만 켜져";
+  }
+  $("optThreads").addEventListener("change", e => { settings.threads = e.target.checked; saveSettings(); toast("다음 게임 실행부터 적용돼"); });
+  $("openSettings").addEventListener("click", syncThreadNote);
+  syncThreadNote();
+
   function syncOptions() {
     $("optAutohide").checked = settings.autohide !== false;
     const f = document.getElementById("filter-" + (settings.filter || "pixel")); if (f) f.checked = true;
@@ -1725,7 +1745,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   }
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V20", "changes": {"V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T14:27+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V21", "changes": {"V21": ["멀티스레드 엔진: 홈 화면 앱에서 3D 그리기를 CPU 코어 2개로 나눠서 해 (설정에서 끄면 예전 엔진)"], "V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T14:36+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;
@@ -1827,7 +1847,16 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 if ("serviceWorker" in navigator) {
   // a page that was already controlled and then gets a new worker = a new version was downloaded
   var hadController = !!navigator.serviceWorker.controller;
+  // first visit (or first visit after this change): reload once under the worker's headers
+  var needIsolation = function () {
+    try {
+      if (window.crossOriginIsolated || sessionStorage.getItem("ndsp-coi-reload")) return false;
+      sessionStorage.setItem("ndsp-coi-reload", "1"); return true;
+    } catch (e) { return false; }
+  };
+  if (navigator.serviceWorker.controller && needIsolation()) location.reload();
   navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (!hadController && needIsolation()) { location.reload(); return; }
     if (hadController && window.__ndspUpdateReady) window.__ndspUpdateReady();
     hadController = true;
   });

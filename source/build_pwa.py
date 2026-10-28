@@ -54,7 +54,16 @@ TAIL = """
 if ("serviceWorker" in navigator) {
   // a page that was already controlled and then gets a new worker = a new version was downloaded
   var hadController = !!navigator.serviceWorker.controller;
+  // first visit (or first visit after this change): reload once under the worker's headers
+  var needIsolation = function () {
+    try {
+      if (window.crossOriginIsolated || sessionStorage.getItem("ndsp-coi-reload")) return false;
+      sessionStorage.setItem("ndsp-coi-reload", "1"); return true;
+    } catch (e) { return false; }
+  };
+  if (navigator.serviceWorker.controller && needIsolation()) location.reload();
   navigator.serviceWorker.addEventListener("controllerchange", function () {
+    if (!hadController && needIsolation()) { location.reload(); return; }
     if (hadController && window.__ndspUpdateReady) window.__ndspUpdateReady();
     hadController = true;
   });
@@ -131,10 +140,20 @@ self.addEventListener("install", e => {{
 self.addEventListener("activate", e => {{
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim()));
 }});
+// GitHub Pages can't send headers, so the worker adds the ones that make the page
+// "cross-origin isolated": that is what lets the engine use several CPU cores.
+function isolate(r) {{
+  if (!r || r.status === 0 || r.type === "opaque") return r;
+  const h = new Headers(r.headers);
+  h.set("Cross-Origin-Opener-Policy", "same-origin");
+  h.set("Cross-Origin-Embedder-Policy", "require-corp");
+  h.set("Cross-Origin-Resource-Policy", "same-origin");
+  return new Response(r.body, {{ status: r.status, statusText: r.statusText, headers: h }});
+}}
 self.addEventListener("fetch", e => {{
   const u = new URL(e.request.url);
   if (e.request.method !== "GET" || u.origin !== location.origin || u.pathname.endsWith("/version.json")) return;
-  e.respondWith(caches.match(e.request, {{ ignoreSearch: true }}).then(r => r || fetch(e.request)));
+  e.respondWith(caches.match(e.request, {{ ignoreSearch: true }}).then(r => r || fetch(e.request)).then(isolate));
 }});
 """
     with open(os.path.join(SITE, "sw.js"), "w", encoding="utf-8") as f:

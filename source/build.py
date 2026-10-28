@@ -6,6 +6,8 @@ Usage: python3 build.py <emulatorjs data dir> <extracted cores dir>
 import json, os, shutil, sys
 
 EJS, CORES = sys.argv[1], sys.argv[2]
+# optional: extracted "-thread" engines (multithreaded builds), used by the home-screen app only
+THREAD_CORES = sys.argv[3] if len(sys.argv) > 3 else None
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DIST = os.path.join(ROOT, "dist")
 CORE_NAMES = ["desmume2015"]  # melonDS dropped in V05: it never rendered and doubled the download
@@ -45,6 +47,7 @@ def patched_emulator():
         '        if (js === null && window.__EJS_CORES && window.__EJS_CORES[this.getCore()]) {\n'
         '            const emb = window.__EJS_CORES[this.getCore()];\n'
         '            window.EJS_Runtime = emb.runtime();\n'
+        '            window.__EJS_MAIN_JS = emb.mainJs; // threaded engines start their helper threads from this file\n'
         '            // the engine ships gzip-compressed; unpack it in the browser, then hand emscripten a blob URL\n'
         '            const getBytes = emb.wasm.charAt(0) === "#"\n'
         '                ? Promise.resolve().then(() => { const t = document.getElementById(emb.wasm.slice(1)).textContent.trim(); const bin = atob(t); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })\n'
@@ -80,7 +83,7 @@ def patched_emulator():
         '        addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {',
         '        if (false) addToMenu(this.localization("Rewind Enabled" + " (" + this.localization("Requires restart") + ")"), "rewindEnabled", {')
     # 3b) Hand emscripten the unpacked engine bytes directly (no URL fetch).
-    s = must_replace(s, "noInitialRun: true,", "noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN,")
+    s = must_replace(s, "noInitialRun: true,", "noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN, mainScriptUrlOrBlob: window.__EJS_MAIN_JS,")
     # 4) No update check against an outside host.
     s = must_replace(s,
         'fetch("https://cdn.emulatorjs.org/stable/data/version.json")',
@@ -135,6 +138,22 @@ def main():
             "window.__EJS_CORES = window.__EJS_CORES || {};\n"
             f"window.__EJS_CORES[{json.dumps(c)}] = {{ meta: {json.dumps(meta)}, wasm: {json.dumps('cores/' + wasm_name)},\n"
             "runtime: function () {\n" + js + "\n;return EJS_Runtime; } };\n")
+        if THREAD_CORES and os.path.isdir(os.path.join(THREAD_CORES, c)):
+            td = os.path.join(THREAD_CORES, c)
+            tjs = read(os.path.join(td, f"{c}_libretro.js"))
+            for a, b in (("var _emscripten_set_main_loop_timing=(mode,value)=>{", "var _emscripten_set_main_loop_timing=globalThis.__ndspTiming=(mode,value)=>{"),
+                         ("var MainLoop={", "var MainLoop=globalThis.__ndspMainLoop={")):
+                assert tjs.count(a) == 1, a
+                tjs = tjs.replace(a, b)
+            twasm = f"{c}-thread_libretro.gz.wasm"
+            with open(os.path.join(td, f"{c}_libretro.wasm"), "rb") as src, open(os.path.join(DIST, "cores", twasm), "wb") as dst:
+                dst.write(gzip.compress(src.read(), 9, mtime=0))
+            # the helper threads load the plain engine script by URL (it starts itself inside a worker)
+            write(f"cores/{c}-thread.raw.js", tjs)
+            write(f"cores/{c}-thread.js",
+                "window.__EJS_CORES = window.__EJS_CORES || {};\n"
+                f"window.__EJS_CORES[{json.dumps(c)}] = {{ meta: {json.dumps(meta)}, threads: true, wasm: {json.dumps('cores/' + twasm)}, mainJs: {json.dumps('cores/' + c + '-thread.raw.js')},\n"
+                "runtime: function () {\n" + tjs + "\n;return EJS_Runtime; } };\n")
 
     for f in ["extractzip.js"]:
         shutil.copy(os.path.join(EJS, "compression", f), os.path.join(DIST, "ejs/compression", f))

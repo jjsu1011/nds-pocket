@@ -656,6 +656,7 @@
         if (js === null && window.__EJS_CORES && window.__EJS_CORES[this.getCore()]) {
             const emb = window.__EJS_CORES[this.getCore()];
             window.EJS_Runtime = emb.runtime();
+            window.__EJS_MAIN_JS = emb.mainJs; // threaded engines start their helper threads from this file
             // the engine ships gzip-compressed; unpack it in the browser, then hand emscripten a blob URL
             const getBytes = emb.wasm.charAt(0) === "#"
                 ? Promise.resolve().then(() => { const t = document.getElementById(emb.wasm.slice(1)).textContent.trim(); const bin = atob(t); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })
@@ -970,7 +971,7 @@
             throw new Error("EJS_Runtime is not defined!");
         }
         window.EJS_Runtime({
-            noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN,
+            noInitialRun: true, wasmBinary: window.__EJS_WASM_BIN, mainScriptUrlOrBlob: window.__EJS_MAIN_JS,
             onRuntimeInitialized: null,
             arguments: [],
             preRun: [],

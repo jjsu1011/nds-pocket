@@ -3,7 +3,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
 <style>
 /* Layout: one-screen app. Library = list of cartridges (DraStic-style rows), Player = black stage with a floating quick bar. */
 :root {
@@ -350,6 +350,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 
     <fieldset>
       <legend>게임 화면 옵션</legend>
+      <label class="toggle"><input type="checkbox" id="optThreads"><span>멀티스레드 엔진<small id="threadNote">3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가</small></span></label>
       <label class="toggle"><input type="checkbox" id="optAutohide"><span>상단 버튼 줄 자동 숨김<small>몇 초 뒤 숨고, 화면 맨 위 가운데를 누르면 다시 나와</small></span></label>
     </fieldset>
 
@@ -980,7 +981,10 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try {
       toast("에뮬레이터 불러오는 중…");
       if (typeof window.EmulatorJS !== "function") await loadScript("ejs/bundle.js");
-      if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + ".js");
+      // the multithreaded engine needs a cross-origin isolated page (home-screen app); otherwise the normal one
+      usingThreads = canUseThreads() && settings.threads !== false;
+      if (!(window.__EJS_CORES && window.__EJS_CORES[settings.core])) await loadScript("cores/" + settings.core + (usingThreads ? "-thread" : "") + ".js");
+      usingThreads = usingThreads && !!(window.__EJS_CORES[settings.core] || {}).threads;
     } catch (e) {
       toast("에뮬레이터 파일을 못 불러왔어. 네트워크 확인하고 다시 눌러줘");
       return;
@@ -1015,6 +1019,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       // accurate timing and no frame skipping: skipping left half-drawn 3D (black boxes, broken sprites)
       defaults["desmume_advanced_timing"] = "enabled";
       defaults["desmume_frameskip"] = "0";
+      // 3D drawing threads: the A18 Pro has two performance cores
+      defaults["desmume_num_cores"] = usingThreads ? "2" : "1";
       defaults["desmume_screens_gap"] = "0";
       // engine's own 3:1 hybrid, kept as a fallback layout
       defaults["desmume_hybrid_layout_scale"] = "3";
@@ -1649,6 +1655,20 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   $("filterSeg").addEventListener("change", e => { settings.filter = e.target.value; saveSettings(); applyFilter(); });
 
   // ---------- options ----------
+  // ---------- multithreaded engine ----------
+  let usingThreads = false;
+  function canUseThreads() { return !!window.crossOriginIsolated && typeof SharedArrayBuffer === "function" && !document.getElementById("wasm-desmume2015"); }
+  function syncThreadNote() {
+    $("optThreads").checked = settings.threads !== false;
+    $("optThreads").disabled = !canUseThreads();
+    $("threadNote").textContent = canUseThreads()
+      ? "3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가 (다음 실행부터)"
+      : "이 화면에서는 쓸 수 없어. 홈 화면 앱에서만 켜져";
+  }
+  $("optThreads").addEventListener("change", e => { settings.threads = e.target.checked; saveSettings(); toast("다음 게임 실행부터 적용돼"); });
+  $("openSettings").addEventListener("click", syncThreadNote);
+  syncThreadNote();
+
   function syncOptions() {
     $("optAutohide").checked = settings.autohide !== false;
     const f = document.getElementById("filter-" + (settings.filter || "pixel")); if (f) f.checked = true;

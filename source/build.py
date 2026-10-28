@@ -121,6 +121,12 @@ def main():
         d = os.path.join(CORES, c)
         meta = json.load(open(os.path.join(d, "core.json"), encoding="utf-8"))
         js = read(os.path.join(d, f"{c}_libretro.js"))
+        # Expose the engine's main-loop scheduler: fast-forward can then run the loop as fast as
+        # possible instead of once per screen refresh (which capped it near 1x).
+        for a, b in (("var _emscripten_set_main_loop_timing=(mode,value)=>{", "var _emscripten_set_main_loop_timing=globalThis.__ndspTiming=(mode,value)=>{"),
+                     ("var MainLoop={", "var MainLoop=globalThis.__ndspMainLoop={")):
+            assert js.count(a) == 1, a
+            js = js.replace(a, b)
         wasm_name = f"{c}_libretro.gz.wasm"  # gzip bytes under a served extension; unpacked in the browser
         import gzip
         with open(os.path.join(d, f"{c}_libretro.wasm"), "rb") as src, open(os.path.join(DIST, "cores", wasm_name), "wb") as dst:

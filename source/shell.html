@@ -1098,6 +1098,13 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       if (s.ratio === 1) { gm.toggleFastForward(0); emu.isFastForward = false; }
       else { gm.setFastForwardRatio(s.ratio); gm.toggleFastForward(1); emu.isFastForward = true; }
     } catch (e) {}
+    setLoopUnlocked(s.ratio !== 1);
+  }
+  // The engine runs one game frame per turn of its main loop, and the loop is tied to screen
+  // refresh (60 or 120 per second), which capped fast-forward at 1-2x. While fast-forwarding,
+  // let the loop run as fast as the phone allows; the engine still holds the chosen ratio.
+  function setLoopUnlocked(on) {
+    try { if (window.__ndspTiming) on ? window.__ndspTiming(2, 0) : window.__ndspTiming(1, 1); } catch (e) {}
   }
   $("speedBtn").addEventListener("click", () => {
     speedIdx = (speedIdx + 1) % SPEEDS.length;

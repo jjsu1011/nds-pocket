@@ -188,6 +188,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 #player { position: fixed; inset: 0; background: #000; z-index: 30; }
 /* the game runs edge to edge; on-screen controls and the quick bar float over it */
 #stage { position: absolute; inset: 0; }
+/* keep the game out from under the Dynamic Island / notch (only non-zero at the top in portrait) */
+#stage { top: env(safe-area-inset-top, 0px); }
 /* our own two-screen drawing layer; sits over the engine canvas, under the on-screen controls */
 .comp { position: absolute; inset: 0; touch-action: none; -webkit-user-select: none; user-select: none; }
 .comp canvas { position: absolute; display: none; }
@@ -951,6 +953,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   function scheduleRelayout() {
     relayoutTimers.forEach(clearTimeout);
     relayoutTimers = [120, 400, 900].map(t => setTimeout(relayout, t));
+    relayoutTimers.push(setTimeout(() => { const e = window.EJS_emulator; if (e && e.started) showTouchPad(); }, 1200));
   }
   window.addEventListener("resize", scheduleRelayout);
   window.addEventListener("orientationchange", scheduleRelayout);
@@ -1053,6 +1056,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       window.EJS_emulator = new EmulatorJS("#game", config);
       window.EJS_emulator.on("start", () => {
         afterStart(rec, opts);
+        // the engine's resize step can re-hide the buttons ~250 ms later, so show them a few times
+        [0, 300, 700, 1300, 2500].forEach(ms => setTimeout(showTouchPad, ms));
         setTimeout(applyPadPos, 50);
         setTimeout(() => { ensureComp(); applyLayout(); }, 80);
         clearInterval(window.__ndspSave);
@@ -1636,13 +1641,27 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   $("openSettings").addEventListener("click", syncBackupNote);
   syncBackupNote();
 
+  // The engine only shows its on-screen buttons if it saw a touch on its own start button.
+  // Our touch-screen layer and the iOS home-screen app can hide that touch, so on any
+  // touch device we show them ourselves (pad-off / controller rules still hide them).
+  function showTouchPad() {
+    const emu = window.EJS_emulator;
+    const touchDevice = ("ontouchstart" in window) || navigator.maxTouchPoints > 0 || matchMedia("(pointer: coarse)").matches;
+    if (!emu || !emu.virtualGamepad || !touchDevice) return;
+    emu.touch = true;
+    emu.virtualGamepad.style.display = "";
+  }
+  window.addEventListener("touchstart", () => { const e = window.EJS_emulator; if (e && e.started && e.virtualGamepad && e.virtualGamepad.style.display === "none" && !(e.menu && e.menu.isOpen && e.menu.isOpen())) showTouchPad(); }, { passive: true, capture: true });
+
   // ---------- controller ----------
+  // only real controllers count: one that announced itself and reports buttons
+  let padSeen = false;
   function syncController() {
-    const pads = navigator.getGamepads ? [...navigator.getGamepads()].filter(Boolean) : [];
+    const pads = (padSeen && navigator.getGamepads) ? [...navigator.getGamepads()].filter(g => g && g.connected && g.buttons && g.buttons.length) : [];
     $("player").classList.toggle("pad-controller", pads.length > 0);
     return pads.length;
   }
-  window.addEventListener("gamepadconnected", e => { syncController(); toast("컨트롤러 연결됨 · 화면 버튼을 숨겼어 (" + (e.gamepad.id || "").split("(")[0].trim().slice(0, 24) + ")"); });
+  window.addEventListener("gamepadconnected", e => { padSeen = true; syncController(); toast("컨트롤러 연결됨 · 화면 버튼을 숨겼어 (" + (e.gamepad.id || "").split("(")[0].trim().slice(0, 24) + ")"); });
   window.addEventListener("gamepaddisconnected", () => { if (!syncController()) toast("컨트롤러 연결 끊김 · 화면 버튼을 다시 보여줄게"); });
 
   // ---------- screen filter ----------

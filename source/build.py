@@ -75,6 +75,26 @@ def patched_emulator():
     s = must_replace(s,
         '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1) {',
         '        const core = cores[this.getCore(true)];\n        if (core && core.length > 1 && !window.__EJS_CORES) {')
+    # 2d) Touch controls:
+    #  - D-pad: the centre came from the unscaled size, so an enlarged/moved D-pad read the
+    #    middle as "down-right". Use the drawn size, and a dead zone that grows with it.
+    #  - Buttons and D-pad: hold every press at least 90 ms, so a quick tap is not lost
+    #    between two emulated frames (felt like slow or missed presses).
+    s = must_replace(s, "dpadMain.clientWidth / 2", "rect.width / 2")
+    s = must_replace(s, "dpadMain.clientHeight / 2", "rect.height / 2")
+    s = must_replace(s, "if (y <= -10) {", "const dz = Math.max(10, rect.width * 0.16); if (e.type === \"touchstart\") dpadMain.__downAt = performance.now(); clearTimeout(dpadMain.__upT);\n                if (y <= -dz) {")
+    s = must_replace(s, "if (y >= 10) {", "if (y >= dz) {")
+    s = must_replace(s, "if (x >= 10) {", "if (x >= dz) {")
+    s = must_replace(s, "if (x <= -10) {", "if (x <= -dz) {")
+    s = must_replace(s,
+        "                callback(0, 0, 0, 0);\n            }\n\n            this.addEventListener(dpadMain, \"touchstart touchmove\", updateCb);",
+        "                clearTimeout(dpadMain.__upT);\n                dpadMain.__upT = setTimeout(() => callback(0, 0, 0, 0), Math.max(0, 90 - (performance.now() - (dpadMain.__downAt || 0))));\n            }\n\n            this.addEventListener(dpadMain, \"touchstart touchmove\", updateCb);")
+    s = must_replace(s,
+        "                        window.setTimeout(() => {\n                            this.gameManager.simulateInput(0, value, 0);\n                        })",
+        "                        clearTimeout(button.__upT);\n                        button.__upT = window.setTimeout(() => {\n                            this.gameManager.simulateInput(0, value, 0);\n                        }, Math.max(0, 90 - (performance.now() - (button.__downAt || 0))))")
+    s = must_replace(s,
+        "                        e.target.classList.add(\"ejs_virtualGamepad_button_down\");\n                        this.gameManager.simulateInput(0, value, downValue);",
+        "                        e.target.classList.add(\"ejs_virtualGamepad_button_down\");\n                        clearTimeout(button.__upT); button.__downAt = performance.now();\n                        this.gameManager.simulateInput(0, value, downValue);")
     # 2c) No rewind: ignore any saved "rewindEnabled" and drop it from the ☰ settings menu.
     s = must_replace(s,
         '        this.rewindEnabled = this.preGetSetting("rewindEnabled") === "enabled";',

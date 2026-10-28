@@ -905,13 +905,26 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     // real taps on our layer (and the click the browser adds after them) stop here too
     ["click", "mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"].forEach(t =>
       layer.addEventListener(t, e => e.stopPropagation()));
+    // The engine samples the touch once per frame, and DS games often want a press held for a
+    // few frames. A quick tap could start and end between samples and be lost, so every press is
+    // held for at least MIN_HOLD ms before the release is passed on.
+    const MIN_HOLD = 120;
+    let downAt = 0, pendingUp = null;
+    const flushUp = () => { if (pendingUp) { clearTimeout(pendingUp.t); const ev = pendingUp.ev; pendingUp = null; send("mouseup", ev); } };
     layer.addEventListener("pointerdown", e => {
       if (resolveLayout(settings.layout).compose && !hitsBot(e)) return;
-      down = true; try { layer.setPointerCapture(e.pointerId); } catch (_) {}
+      flushUp();
+      down = true; downAt = performance.now(); try { layer.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault(); send("mousedown", e);
     });
     layer.addEventListener("pointermove", e => { if (down) { e.preventDefault(); send("mousemove", e); } });
-    const up = e => { if (!down) return; down = false; e.preventDefault(); send("mouseup", e); };
+    const up = e => {
+      if (!down) return; down = false; e.preventDefault();
+      const ev = { clientX: e.clientX, clientY: e.clientY };
+      const wait = MIN_HOLD - (performance.now() - downAt);
+      if (wait > 0) pendingUp = { ev, t: setTimeout(() => { pendingUp = null; send("mouseup", ev); }, wait) };
+      else send("mouseup", ev);
+    };
     layer.addEventListener("pointerup", up);
     layer.addEventListener("pointercancel", up);
     const loop = () => { comp.raf = requestAnimationFrame(loop); drawComp(); };

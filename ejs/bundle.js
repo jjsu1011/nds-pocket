@@ -3838,11 +3838,13 @@
                     e.preventDefault();
                     if (e.type === "touchend" || e.type === "touchcancel") {
                         e.target.classList.remove("ejs_virtualGamepad_button_down");
-                        window.setTimeout(() => {
+                        clearTimeout(button.__upT);
+                        button.__upT = window.setTimeout(() => {
                             this.gameManager.simulateInput(0, value, 0);
-                        })
+                        }, Math.max(0, 90 - (performance.now() - (button.__downAt || 0))))
                     } else {
                         e.target.classList.add("ejs_virtualGamepad_button_down");
+                        clearTimeout(button.__upT); button.__downAt = performance.now();
                         this.gameManager.simulateInput(0, value, downValue);
                     }
                 })
@@ -3873,22 +3875,23 @@
                 const touch = e.targetTouches[0];
                 if (!touch) return;
                 const rect = dpadMain.getBoundingClientRect();
-                const x = touch.clientX - rect.left - dpadMain.clientWidth / 2;
-                const y = touch.clientY - rect.top - dpadMain.clientHeight / 2;
+                const x = touch.clientX - rect.left - rect.width / 2;
+                const y = touch.clientY - rect.top - rect.height / 2;
                 let up = 0,
                     down = 0,
                     left = 0,
                     right = 0,
                     angle = Math.atan(x / y) / (Math.PI / 180);
 
-                if (y <= -10) {
+                const dz = Math.max(10, rect.width * 0.16); if (e.type === "touchstart") dpadMain.__downAt = performance.now(); clearTimeout(dpadMain.__upT);
+                if (y <= -dz) {
                     up = 1;
                 }
-                if (y >= 10) {
+                if (y >= dz) {
                     down = 1;
                 }
 
-                if (x >= 10) {
+                if (x >= dz) {
                     right = 1;
                     left = 0;
                     if (angle < 0 && angle >= -35 || angle > 0 && angle <= 35) {
@@ -3898,7 +3901,7 @@
                     down = (angle > 0 && angle <= 55 ? 1 : 0);
                 }
 
-                if (x <= -10) {
+                if (x <= -dz) {
                     right = 0;
                     left = 1;
                     if (angle < 0 && angle >= -35 || angle > 0 && angle <= 35) {
@@ -3922,7 +3925,8 @@
                 dpadMain.classList.remove("ejs_dpad_right_pressed");
                 dpadMain.classList.remove("ejs_dpad_left_pressed");
 
-                callback(0, 0, 0, 0);
+                clearTimeout(dpadMain.__upT);
+                dpadMain.__upT = setTimeout(() => callback(0, 0, 0, 0), Math.max(0, 90 - (performance.now() - (dpadMain.__downAt || 0))));
             }
 
             this.addEventListener(dpadMain, "touchstart touchmove", updateCb);

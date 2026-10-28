@@ -222,10 +222,15 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
 .editbar {
   position: absolute; z-index: 7; left: 50%; transform: translateX(-50%);
   top: calc(6px + env(safe-area-inset-top, 0px));
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
-  background: #121417e6; border: 1px solid #f2b33d88; border-radius: 999px; padding: 4px 6px 4px 14px;
-  color: #e8eaee; font-size: 12px; max-width: calc(100% - 24px);
+  display: flex; flex-direction: column; gap: 6px;
+  background: #121417ee; border: 1px solid #f2b33d88; border-radius: 14px; padding: 8px 12px;
+  color: #e8eaee; font-size: 12px; width: min(340px, calc(100% - 24px)); box-sizing: border-box;
 }
+.edit-top { display: flex; align-items: center; gap: 6px; }
+.edit-top span { flex: 1; min-width: 0; }
+.size-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) 42px; align-items: center; gap: 8px; }
+.size-row input { width: 100%; accent-color: #f2b33d; }
+.size-row b { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
 .editbar button { height: 28px; border-radius: 999px; border: 1px solid #ffffff33; background: #22262d; color: #e8eaee; padding: 0 12px; font-size: 12px; }
 .editbar button.primary { background: #f2b33d; color: #1c1405; border-color: #f2b33d; font-weight: 600; }
 .quickbar button[aria-pressed="false"] { color: #f2b33d; border-color: #f2b33d66; }
@@ -345,9 +350,14 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     <input type="range" id="splitRange" min="50" max="85" step="1" value="70" aria-label="위 화면이 차지하는 가로 비율">
   </div>
   <div class="editbar" id="editbar" hidden>
-    <span>버튼을 끌어서 옮겨</span>
-    <button id="padReset">처음 위치로</button>
-    <button id="padDone" class="primary">완료</button>
+    <div class="edit-top">
+      <span>끌어서 옮기기 · 크기 조절</span>
+      <button id="padReset">처음대로</button>
+      <button id="padDone" class="primary">완료</button>
+    </div>
+    <label class="size-row"><span>L·R</span><input type="range" id="size-rl" min="60" max="180" step="5" value="100"><b id="size-rl-v">100%</b></label>
+    <label class="size-row"><span>십자키</span><input type="range" id="size-dpad" min="60" max="180" step="5" value="100"><b id="size-dpad-v">100%</b></label>
+    <label class="size-row"><span>A·B·X·Y</span><input type="range" id="size-face" min="60" max="180" step="5" value="100"><b id="size-face-v">100%</b></label>
   </div>
 </div>
 
@@ -1014,18 +1024,71 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     for (const g in PAD_GROUPS) { const hit = el.closest(PAD_GROUPS[g]); if (hit) return g; }
     return null;
   }
-  function setGroup(g, dx, dy) {
+  // size groups: L and R share one slider, each scales around its own centre;
+  // the four face buttons scale around their common centre so they never overlap
+  const SIZE_OF = { l: "rl", r: "rl", dpad: "dpad", face: "face" };
+  const sizeOf = g => (SIZE_OF[g] && padPos.__size && padPos.__size[SIZE_OF[g]]) || 1;
+  let base = null; // untransformed centres, measured with the controls laid out
+  function measureBase() {
     const root = padRoot(); if (!root) return;
-    root.querySelectorAll(PAD_GROUPS[g]).forEach(el => { el.style.translate = dx + "px " + dy + "px"; });
+    const all = Object.values(PAD_GROUPS).join(",");
+    root.querySelectorAll(all).forEach(el => { el.style.translate = ""; el.style.scale = ""; });
+    // the controls may be hidden (버튼 끄기, before first touch); lay them out invisibly to measure
+    const prevD = root.style.getPropertyValue("display"), prevDP = root.style.getPropertyPriority("display"), prevV = root.style.visibility;
+    root.style.setProperty("display", "block", "important"); root.style.visibility = "hidden";
+    base = {};
+    for (const g in PAD_GROUPS) {
+      const els = [...root.querySelectorAll(PAD_GROUPS[g])].map(el => { const r = el.getBoundingClientRect(); return { el, x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; });
+      if (!els.length) continue;
+      const xs = els.map(e => e.x), ys = els.map(e => e.y);
+      base[g] = { els, cx: (Math.min(...xs) + Math.max(...xs)) / 2, cy: (Math.min(...ys) + Math.max(...ys)) / 2 };
+    }
+    if (prevD) root.style.setProperty("display", prevD, prevDP); else root.style.removeProperty("display");
+    root.style.visibility = prevV;
+  }
+  function setGroup(g, dx, dy) {
+    if (!base || !base[g]) return;
+    const k = sizeOf(g), B = base[g];
+    // keep the whole group on screen however big it gets
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    B.els.forEach(({ x, y, w, h }) => {
+      const nx = x + dx + (k - 1) * (x - B.cx), ny = y + dy + (k - 1) * (y - B.cy);
+      x0 = Math.min(x0, nx - w * k / 2); x1 = Math.max(x1, nx + w * k / 2);
+      y0 = Math.min(y0, ny - h * k / 2); y1 = Math.max(y1, ny + h * k / 2);
+    });
+    const W = window.innerWidth, H = window.innerHeight, m = 4;
+    if (x1 - x0 < W - 2 * m) { if (x0 < m) dx += m - x0; else if (x1 > W - m) dx -= x1 - (W - m); }
+    if (y1 - y0 < H - 2 * m) { if (y0 < m) dy += m - y0; else if (y1 > H - m) dy -= y1 - (H - m); }
+    B.els.forEach(({ el, x, y }) => {
+      el.style.translate = (dx + (k - 1) * (x - B.cx)) + "px " + (dy + (k - 1) * (y - B.cy)) + "px";
+      el.style.scale = k === 1 ? "" : String(k);
+    });
   }
   function applyPadPos() {
     padPos = loadPadPos();
+    measureBase();
     const W = window.innerWidth, H = window.innerHeight;
     for (const g in PAD_GROUPS) {
       const p = padPos[g] || [0, 0];
       setGroup(g, p[0] * W, p[1] * H);
     }
+    syncSizeSliders();
   }
+  function syncSizeSliders() {
+    ["rl", "dpad", "face"].forEach(k => {
+      const v = Math.round(((padPos.__size && padPos.__size[k]) || 1) * 100);
+      $("size-" + k).value = v; $("size-" + k + "-v").textContent = v + "%";
+    });
+  }
+  ["rl", "dpad", "face"].forEach(k => {
+    $("size-" + k).addEventListener("input", e => {
+      padPos.__size = Object.assign({}, padPos.__size, { [k]: Number(e.target.value) / 100 });
+      $("size-" + k + "-v").textContent = e.target.value + "%";
+      const W = window.innerWidth, H = window.innerHeight;
+      for (const g in SIZE_OF) if (SIZE_OF[g] === k) { const p = padPos[g] || [0, 0]; setGroup(g, p[0] * W, p[1] * H); }
+    });
+    $("size-" + k).addEventListener("change", () => savePadPos(padPos));
+  });
   window.addEventListener("resize", () => { if (current) applyPadPos(); });
 
   let editing = false, drag = null;
@@ -1069,9 +1132,10 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     $("editbar").hidden = !on;
     try { on ? window.EJS_emulator.pause() : window.EJS_emulator.play(); } catch (e) {}
     if (on && !padRoot()) toast("게임이 시작된 뒤에 옮길 수 있어");
+    if (on) { syncSizeSliders(); if (!base) applyPadPos(); }
   }
   $("moveBtn").addEventListener("click", () => setEditing(true));
-  $("padDone").addEventListener("click", () => { setEditing(false); toast("버튼 위치 저장함 (" + (isLandscape() ? "가로" : "세로") + ")"); });
+  $("padDone").addEventListener("click", () => { savePadPos(padPos); setEditing(false); toast("버튼 위치·크기 저장함 (" + (isLandscape() ? "가로" : "세로") + ")"); });
   $("padReset").addEventListener("click", () => { padPos = {}; savePadPos(padPos); applyPadPos(); });
 
   // ---------- Keeping game saves ----------
@@ -1100,7 +1164,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V15", "changes": {"V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:24+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V16", "changes": {"V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T11:45+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

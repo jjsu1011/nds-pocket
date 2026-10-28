@@ -101,11 +101,14 @@ button:focus-visible, label:focus-visible, input:focus-visible + span { outline:
 .title { font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sub { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .facts { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; font-family: var(--font-display); letter-spacing: 0.04em; }
-.more { width: 36px; height: 36px; border-radius: 50%; border: 0; background: none; color: var(--muted); display: grid; place-items: center; }
+.more { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--fg); display: grid; place-items: center; }
 .more svg { width: 20px; height: 20px; }
-.row-actions { grid-column: 1 / -1; display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+.row-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding-top: 4px; }
+.row-actions .chip-btn { white-space: nowrap; }
 .chip-btn { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 13px; }
 .chip-btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
+.chip-btn.danger.armed { background: var(--danger); color: #fff; border-color: var(--danger); font-weight: 600; }
+.row-actions .hint-save { flex: 1 1 100%; text-align: right; color: var(--muted); font-size: 12px; }
 
 .empty {
   border: 1px dashed var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 14px;
@@ -568,7 +571,7 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
     const actions = document.createElement("div");
     actions.className = "row-actions";
     actions.hidden = true;
-    actions.innerHTML = '<button class="chip-btn" data-a="cancel">취소</button><button class="chip-btn danger" data-a="del">라이브러리에서 삭제</button>';
+    actions.innerHTML = '<span class="hint-save">롬만 지워지고 세이브는 남아. 같은 롬을 다시 넣으면 이어서 할 수 있어</span><button class="chip-btn" data-a="cancel">취소</button><button class="chip-btn danger" data-a="del">롬 삭제</button>';
     row.appendChild(actions);
 
     const play = () => launch(r.id);
@@ -584,7 +587,15 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
       e.stopPropagation();
       const a = e.target.closest("button");
       if (!a) return;
-      if (a.dataset.a === "del") { await deleteRom(r.id); toast("‘" + r.title + "’ 삭제함"); render(); }
+      if (a.dataset.a === "del") {
+        // two taps: the first arms the button, the second deletes
+        if (!a.classList.contains("armed")) {
+          a.classList.add("armed"); a.textContent = "한 번 더 누르면 삭제";
+          clearTimeout(a._t); a._t = setTimeout(() => { a.classList.remove("armed"); a.textContent = "롬 삭제"; }, 4000);
+          return;
+        }
+        await deleteRom(r.id); toast("‘" + r.title + "’ 삭제함"); render();
+      }
       else { actions.hidden = true; openActions = null; }
     });
     wrap.appendChild(row);
@@ -707,9 +718,16 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
         cx = r.left + c.x + fx * c.w;
         cy = r.top + c.y + c.h / 2 + fy * c.h / 2;
       }
-      cv.dispatchEvent(new MouseEvent(type, { clientX: cx, clientY: cy, screenX: cx, screenY: cy, bubbles: true, cancelable: true, view: window, button: 0, buttons: type === "mouseup" ? 0 : 1 }));
+      // Deliver to the engine canvas and the document directly, without bubbling: the emulator's
+      // wrapper shows its bottom menu bar on clicks/moves that reach it, which popped the bar on every tap.
+      const init = { clientX: cx, clientY: cy, screenX: cx, screenY: cy, bubbles: false, cancelable: true, view: window, button: 0, buttons: type === "mouseup" ? 0 : 1 };
+      cv.dispatchEvent(new MouseEvent(type, init));
+      document.dispatchEvent(new MouseEvent(type, init));
     };
     const hitsBot = e => { const b = comp.bot.getBoundingClientRect(); return e.clientX >= b.left && e.clientX <= b.right && e.clientY >= b.top && e.clientY <= b.bottom; };
+    // real taps on our layer (and the click the browser adds after them) stop here too
+    ["click", "mousedown", "mousemove", "mouseup", "touchstart", "touchmove", "touchend"].forEach(t =>
+      layer.addEventListener(t, e => e.stopPropagation()));
     layer.addEventListener("pointerdown", e => {
       if (resolveLayout(settings.layout).compose && !hitsBot(e)) return;
       down = true; try { layer.setPointerCapture(e.pointerId); } catch (_) {}
@@ -1028,9 +1046,13 @@ legend { font-weight: 600; margin-bottom: 8px; padding: 0; }
   });
 
   // ---------- Version, update notice, what's new ----------
-  const APP_VERSION = "V12";
-  const BUILD_STAMP = "2026-10-28T10:58+09:00"; // ISO time, filled in at build
+  const APP_VERSION = "V13";
+  const BUILD_STAMP = "2026-10-28T11:04+09:00"; // ISO time, filled in at build
   const CHANGES = {
+    V13: [
+      "터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어",
+      "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"
+    ],
     V12: [
       "새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼",
       "업데이트 후 처음 켜면 이 화면으로 바뀐 점을 보여줘",

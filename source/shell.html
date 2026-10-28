@@ -209,6 +209,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 .lcd-overlay { position: absolute; inset: 0; pointer-events: none; display: none;
   background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
 #player.filter-lcd .lcd-overlay { display: block; }
+.split-btns { display: flex; gap: 8px; justify-content: center; }
 .split-fill { align-self: center; border: 1px solid #f2b33d88; background: #22262d; color: #e8eaee; border-radius: 999px; padding: 5px 14px; font-size: 12px; }
 .slot-panel {
   position: absolute; z-index: 8; left: 50%; transform: translateX(-50%);
@@ -353,6 +354,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     <fieldset>
       <legend>게임 화면 옵션</legend>
       <label class="toggle"><input type="checkbox" id="optThreads"><span>멀티스레드 엔진<small id="threadNote">3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가</small></span></label>
+      <label class="toggle"><input type="checkbox" id="optSwap"><span>터치 화면과 게임 화면 자리 바꾸기<small>가로: 터치 화면이 왼쪽 / 세로: 터치 화면이 위. 게임 중 상단 바의 화면 바꾸기로도 돼</small></span></label>
       <label class="toggle"><input type="checkbox" id="optAutohide"><span>상단 버튼 줄 자동 숨김<small>몇 초 뒤 숨고, 화면 맨 위 가운데를 누르면 다시 나와</small></span></label>
     </fieldset>
 
@@ -403,7 +405,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     <button id="slotBtn" aria-label="저장 슬롯">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span class="ql">저장</span>
     </button>
-    <button id="swapBtn" aria-label="위아래 화면 바꾸기" aria-pressed="true">
+    <button id="swapBtn" aria-label="터치 화면과 게임 화면 자리 바꾸기" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4L4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg><span class="ql">화면 바꾸기</span>
     </button>
     <button id="splitBtn" hidden aria-label="화면 크기">
@@ -417,9 +419,9 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     </button>
   </div>
   <div class="split-panel" id="splitPanel" hidden>
-    <div class="row2"><span>위 화면 <b id="splitTop">70%</b></span><span>아래(터치) 화면 <b id="splitBot">30%</b></span></div>
-    <input type="range" id="splitRange" min="50" max="85" step="1" value="70" aria-label="위 화면이 차지하는 가로 비율">
-    <button class="split-fill" id="splitFill" type="button">가로 꽉 채우기</button>
+    <div class="row2"><span id="splitLeftL">게임 화면 <b id="splitTop">70%</b></span><span id="splitRightL">터치 화면 <b id="splitBot">30%</b></span></div>
+    <input type="range" id="splitRange" min="15" max="85" step="1" value="70" aria-label="게임 화면과 터치 화면의 가로 비율">
+    <div class="split-btns"><button class="split-fill" id="splitSwap" type="button">⇄ 자리 바꾸기</button><button class="split-fill" id="splitFill" type="button">가로 꽉 채우기</button></div>
   </div>
   <div class="slot-panel" id="slotPanel" hidden>
     <div class="slot-head"><b>상태 저장</b><span class="note">슬롯을 골라 저장하거나 불러와</span><button id="slotClose" aria-label="닫기">닫기</button></div>
@@ -521,6 +523,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try { localStorage.setItem("ndsp-settings", JSON.stringify(settings)); } catch (e) {}
   }
   let settings = loadSettings();
+  // V23: split = the game (top) screen's share, swap = touch screen on the left / on top
+  if (settings.splitV !== 2) { if (settings.swap && settings.split) settings.split = 1 - settings.split; settings.splitV = 2; saveSettings(); }
   // V03 introduced the auto layout; move earlier saves onto it once.
   if (settings.v !== 3) { settings.layout = "auto"; settings.v = 3; saveSettings(); }
   settings.core = "desmume2015"; // the only engine shipped since V05
@@ -906,9 +910,10 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!L.compose) return;
     const box = comp.layer.getBoundingClientRect();
     const W = box.width, H = box.height;
-    const r = settings.split || 0.7;               // share of the width for the top (big) screen
+    const r = settings.split || 0.7;               // share of the width for the game (top) screen
+    const left = settings.swap ? 1 - r : r;        // comp.top is the left slot; it shows the touch screen when swapped
     const S = Math.min(W, H / (0.75 * Math.max(r, 1 - r)));
-    const wt = r * S, wb = (1 - r) * S;
+    const wt = left * S, wb = (1 - left) * S;
     const x0 = (W - S) / 2;
     const place = (el, x, w) => {
       const h = w * 0.75, y = (H - h) / 2;
@@ -1124,15 +1129,20 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   });
 
   // Screen split slider (share of the width for the top screen)
+  // the slider runs left→right: dragging right makes the left screen bigger
   function syncSplit() {
     const pct = Math.round((settings.split || 0.7) * 100);
-    $("splitRange").value = pct;
-    $("splitTop").textContent = pct + "%";
-    $("splitBot").textContent = (100 - pct) + "%";
+    const leftPct = settings.swap ? 100 - pct : pct;
+    $("splitRange").value = leftPct;
+    $("splitLeftL").firstChild.textContent = (settings.swap ? "터치 화면 " : "게임 화면 ");
+    $("splitRightL").firstChild.textContent = (settings.swap ? "게임 화면 " : "터치 화면 ");
+    $("splitTop").textContent = leftPct + "%";
+    $("splitBot").textContent = (100 - leftPct) + "%";
   }
   $("splitBtn").addEventListener("click", () => { $("splitPanel").hidden = !$("splitPanel").hidden; syncSplit(); });
   $("splitRange").addEventListener("input", e => {
-    settings.split = Number(e.target.value) / 100;
+    const v = Number(e.target.value) / 100;
+    settings.split = settings.swap ? 1 - v : v;
     syncSplit(); layoutComp();
   });
   $("splitRange").addEventListener("change", saveSettings);
@@ -1711,11 +1721,19 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   document.querySelector(".quickbar").addEventListener("pointerdown", showQuickbar);
 
   // ---------- swap screens ----------
-  function syncSwap() { $("swapBtn").setAttribute("aria-pressed", String(!settings.swap)); }
-  $("swapBtn").addEventListener("click", () => {
-    settings.swap = !settings.swap; saveSettings(); syncSwap();
-    applyLayout(); toast(settings.swap ? "아래(터치) 화면을 크게" : "위 화면을 크게");
-  });
+  // swaps where the two screens sit (sizes stay with each screen)
+  function syncSwap() {
+    $("swapBtn").setAttribute("aria-pressed", String(!settings.swap));
+    $("optSwap").checked = !!settings.swap;
+  }
+  function setSwap(on, quiet) {
+    settings.swap = on; saveSettings(); syncSwap(); syncSplit();
+    if (current) applyLayout();
+    if (!quiet) toast(on ? "터치 화면을 왼쪽(세로: 위)으로 옮겼어" : "게임 화면을 왼쪽(세로: 위)으로 옮겼어");
+  }
+  $("swapBtn").addEventListener("click", () => setSwap(!settings.swap));
+  $("splitSwap").addEventListener("click", () => setSwap(!settings.swap));
+  $("optSwap").addEventListener("change", e => setSwap(e.target.checked, true));
   syncSwap();
 
   // ---------- 가로 꽉 채우기 ----------
@@ -1723,8 +1741,11 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!comp.layer) return;
     const b = comp.layer.getBoundingClientRect();
     const r = b.height / (0.75 * b.width); // two screens side by side exactly as wide as the screen
-    if (r < 0.5) { toast("이 화면은 너무 넓어서 양옆을 다 채울 수 없어. 50%가 가장 넓어"); settings.split = 0.5; }
-    else settings.split = Math.min(0.85, Math.floor(r * 100) / 100); // round down, or the pair is a hair too tall and stops short of the edges
+    // r is the bigger screen's share; keep whichever screen is bigger now as the bigger one
+    let big;
+    if (r < 0.5) { toast("이 화면은 너무 넓어서 양옆을 다 채울 수 없어. 50%가 가장 넓어"); big = 0.5; }
+    else big = Math.min(0.85, Math.floor(r * 100) / 100); // round down, or the pair is a hair too tall and stops short of the edges
+    settings.split = (settings.split || 0.7) >= 0.5 ? big : 1 - big;
     saveSettings(); syncSplit(); layoutComp();
   });
 

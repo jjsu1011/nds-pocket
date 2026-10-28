@@ -226,6 +226,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
 .lcd-overlay { position: absolute; inset: 0; pointer-events: none; display: none;
   background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, transparent 1px 3px), repeating-linear-gradient(90deg, rgba(0,0,0,.14) 0 1px, transparent 1px 3px); }
 #player.filter-lcd .lcd-overlay { display: block; }
+.split-btns { display: flex; gap: 8px; justify-content: center; }
 .split-fill { align-self: center; border: 1px solid #f2b33d88; background: #22262d; color: #e8eaee; border-radius: 999px; padding: 5px 14px; font-size: 12px; }
 .slot-panel {
   position: absolute; z-index: 8; left: 50%; transform: translateX(-50%);
@@ -370,6 +371,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     <fieldset>
       <legend>게임 화면 옵션</legend>
       <label class="toggle"><input type="checkbox" id="optThreads"><span>멀티스레드 엔진<small id="threadNote">3D 그리기를 CPU 코어 2개로 나눠서 해. 게임이 이상하면 끄면 예전 엔진으로 돌아가</small></span></label>
+      <label class="toggle"><input type="checkbox" id="optSwap"><span>터치 화면과 게임 화면 자리 바꾸기<small>가로: 터치 화면이 왼쪽 / 세로: 터치 화면이 위. 게임 중 상단 바의 화면 바꾸기로도 돼</small></span></label>
       <label class="toggle"><input type="checkbox" id="optAutohide"><span>상단 버튼 줄 자동 숨김<small>몇 초 뒤 숨고, 화면 맨 위 가운데를 누르면 다시 나와</small></span></label>
     </fieldset>
 
@@ -420,7 +422,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     <button id="slotBtn" aria-label="저장 슬롯">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/></svg><span class="ql">저장</span>
     </button>
-    <button id="swapBtn" aria-label="위아래 화면 바꾸기" aria-pressed="true">
+    <button id="swapBtn" aria-label="터치 화면과 게임 화면 자리 바꾸기" aria-pressed="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M7 4L4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3"/></svg><span class="ql">화면 바꾸기</span>
     </button>
     <button id="splitBtn" hidden aria-label="화면 크기">
@@ -434,9 +436,9 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     </button>
   </div>
   <div class="split-panel" id="splitPanel" hidden>
-    <div class="row2"><span>위 화면 <b id="splitTop">70%</b></span><span>아래(터치) 화면 <b id="splitBot">30%</b></span></div>
-    <input type="range" id="splitRange" min="50" max="85" step="1" value="70" aria-label="위 화면이 차지하는 가로 비율">
-    <button class="split-fill" id="splitFill" type="button">가로 꽉 채우기</button>
+    <div class="row2"><span id="splitLeftL">게임 화면 <b id="splitTop">70%</b></span><span id="splitRightL">터치 화면 <b id="splitBot">30%</b></span></div>
+    <input type="range" id="splitRange" min="15" max="85" step="1" value="70" aria-label="게임 화면과 터치 화면의 가로 비율">
+    <div class="split-btns"><button class="split-fill" id="splitSwap" type="button">⇄ 자리 바꾸기</button><button class="split-fill" id="splitFill" type="button">가로 꽉 채우기</button></div>
   </div>
   <div class="slot-panel" id="slotPanel" hidden>
     <div class="slot-head"><b>상태 저장</b><span class="note">슬롯을 골라 저장하거나 불러와</span><button id="slotClose" aria-label="닫기">닫기</button></div>
@@ -538,6 +540,8 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try { localStorage.setItem("ndsp-settings", JSON.stringify(settings)); } catch (e) {}
   }
   let settings = loadSettings();
+  // V23: split = the game (top) screen's share, swap = touch screen on the left / on top
+  if (settings.splitV !== 2) { if (settings.swap && settings.split) settings.split = 1 - settings.split; settings.splitV = 2; saveSettings(); }
   // V03 introduced the auto layout; move earlier saves onto it once.
   if (settings.v !== 3) { settings.layout = "auto"; settings.v = 3; saveSettings(); }
   settings.core = "desmume2015"; // the only engine shipped since V05
@@ -923,9 +927,10 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!L.compose) return;
     const box = comp.layer.getBoundingClientRect();
     const W = box.width, H = box.height;
-    const r = settings.split || 0.7;               // share of the width for the top (big) screen
+    const r = settings.split || 0.7;               // share of the width for the game (top) screen
+    const left = settings.swap ? 1 - r : r;        // comp.top is the left slot; it shows the touch screen when swapped
     const S = Math.min(W, H / (0.75 * Math.max(r, 1 - r)));
-    const wt = r * S, wb = (1 - r) * S;
+    const wt = left * S, wb = (1 - left) * S;
     const x0 = (W - S) / 2;
     const place = (el, x, w) => {
       const h = w * 0.75, y = (H - h) / 2;
@@ -1141,15 +1146,20 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   });
 
   // Screen split slider (share of the width for the top screen)
+  // the slider runs left→right: dragging right makes the left screen bigger
   function syncSplit() {
     const pct = Math.round((settings.split || 0.7) * 100);
-    $("splitRange").value = pct;
-    $("splitTop").textContent = pct + "%";
-    $("splitBot").textContent = (100 - pct) + "%";
+    const leftPct = settings.swap ? 100 - pct : pct;
+    $("splitRange").value = leftPct;
+    $("splitLeftL").firstChild.textContent = (settings.swap ? "터치 화면 " : "게임 화면 ");
+    $("splitRightL").firstChild.textContent = (settings.swap ? "게임 화면 " : "터치 화면 ");
+    $("splitTop").textContent = leftPct + "%";
+    $("splitBot").textContent = (100 - leftPct) + "%";
   }
   $("splitBtn").addEventListener("click", () => { $("splitPanel").hidden = !$("splitPanel").hidden; syncSplit(); });
   $("splitRange").addEventListener("input", e => {
-    settings.split = Number(e.target.value) / 100;
+    const v = Number(e.target.value) / 100;
+    settings.split = settings.swap ? 1 - v : v;
     syncSplit(); layoutComp();
   });
   $("splitRange").addEventListener("change", saveSettings);
@@ -1728,11 +1738,19 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   document.querySelector(".quickbar").addEventListener("pointerdown", showQuickbar);
 
   // ---------- swap screens ----------
-  function syncSwap() { $("swapBtn").setAttribute("aria-pressed", String(!settings.swap)); }
-  $("swapBtn").addEventListener("click", () => {
-    settings.swap = !settings.swap; saveSettings(); syncSwap();
-    applyLayout(); toast(settings.swap ? "아래(터치) 화면을 크게" : "위 화면을 크게");
-  });
+  // swaps where the two screens sit (sizes stay with each screen)
+  function syncSwap() {
+    $("swapBtn").setAttribute("aria-pressed", String(!settings.swap));
+    $("optSwap").checked = !!settings.swap;
+  }
+  function setSwap(on, quiet) {
+    settings.swap = on; saveSettings(); syncSwap(); syncSplit();
+    if (current) applyLayout();
+    if (!quiet) toast(on ? "터치 화면을 왼쪽(세로: 위)으로 옮겼어" : "게임 화면을 왼쪽(세로: 위)으로 옮겼어");
+  }
+  $("swapBtn").addEventListener("click", () => setSwap(!settings.swap));
+  $("splitSwap").addEventListener("click", () => setSwap(!settings.swap));
+  $("optSwap").addEventListener("change", e => setSwap(e.target.checked, true));
   syncSwap();
 
   // ---------- 가로 꽉 채우기 ----------
@@ -1740,8 +1758,11 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!comp.layer) return;
     const b = comp.layer.getBoundingClientRect();
     const r = b.height / (0.75 * b.width); // two screens side by side exactly as wide as the screen
-    if (r < 0.5) { toast("이 화면은 너무 넓어서 양옆을 다 채울 수 없어. 50%가 가장 넓어"); settings.split = 0.5; }
-    else settings.split = Math.min(0.85, Math.floor(r * 100) / 100); // round down, or the pair is a hair too tall and stops short of the edges
+    // r is the bigger screen's share; keep whichever screen is bigger now as the bigger one
+    let big;
+    if (r < 0.5) { toast("이 화면은 너무 넓어서 양옆을 다 채울 수 없어. 50%가 가장 넓어"); big = 0.5; }
+    else big = Math.min(0.85, Math.floor(r * 100) / 100); // round down, or the pair is a hair too tall and stops short of the edges
+    settings.split = (settings.split || 0.7) >= 0.5 ? big : 1 - big;
     saveSettings(); syncSplit(); layoutComp();
   });
 
@@ -1764,7 +1785,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   }
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V22", "changes": {"V22": ["세로 모드에서 위 화면 윗부분이 다이내믹 아일랜드(카메라섬)에 가려지던 문제 수정: 게임 화면을 그만큼 아래로 내렸어", "홈 화면 앱에서 게임을 켜도 화면 버튼(십자키·ABXY 등)이 안 나오는 경우가 있던 문제 수정"], "V21": ["멀티스레드 엔진: 홈 화면 앱에서 3D 그리기를 CPU 코어 2개로 나눠서 해 (설정에서 끄면 예전 엔진)"], "V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T15:36+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V23", "changes": {"V23": ["화면 크기 비율을 15~85%로 넓혔어. 슬라이더를 왼쪽으로 끌면 터치 화면이 게임 화면보다 커져", "화면 바꾸기가 이제 두 화면의 자리를 바꿔 (가로: 터치 화면이 왼쪽, 세로: 터치 화면이 위). 크기는 각자 그대로 따라가", "설정 → 게임 화면 옵션에 '터치 화면과 게임 화면 자리 바꾸기' 스위치, 화면 크기 패널에 '⇄ 자리 바꾸기' 버튼 추가"], "V22": ["세로 모드에서 위 화면 윗부분이 다이내믹 아일랜드(카메라섬)에 가려지던 문제 수정: 게임 화면을 그만큼 아래로 내렸어", "홈 화면 앱에서 게임을 켜도 화면 버튼(십자키·ABXY 등)이 안 나오는 경우가 있던 문제 수정"], "V21": ["멀티스레드 엔진: 홈 화면 앱에서 3D 그리기를 CPU 코어 2개로 나눠서 해 (설정에서 끄면 예전 엔진)"], "V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-28T15:41+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

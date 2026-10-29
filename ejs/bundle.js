@@ -836,7 +836,7 @@
                 }
 
                 let fileNames = [];
-                this.checkCompression(new Uint8Array(data), this.localization("Decompress Game Data"), (fileName, fileData) => {
+                this.checkCompression((data instanceof Uint8Array ? data : new Uint8Array(data)), this.localization("Decompress Game Data"), (fileName, fileData) => {
                     if (fileName.includes("/")) {
                         const paths = fileName.split("/");
                         let cp = "";
@@ -853,7 +853,7 @@
                         return;
                     }
                     if (fileName === "!!notCompressedData") {
-                        this.gameManager.FS.writeFile(altName, fileData);
+                        this.gameManager.FS.writeFile(altName, fileData, { canOwn: true });
                         fileNames.push(altName);
                     } else {
                         this.gameManager.FS.writeFile(`/${fileName}`, fileData);

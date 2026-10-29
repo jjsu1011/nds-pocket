@@ -552,13 +552,15 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       try {
         // v2: list info in "roms", raw ROM bytes (ArrayBuffer, not Blob) in "romdata".
         // iOS home-screen apps often can't read Blobs back out of IndexedDB.
-        const r = indexedDB.open("nds-pocket", 3);
+        const r = indexedDB.open("nds-pocket", 4);
         r.onupgradeneeded = () => {
           const d = r.result;
           if (!d.objectStoreNames.contains("roms")) d.createObjectStore("roms", { keyPath: "id" });
           if (!d.objectStoreNames.contains("romdata")) d.createObjectStore("romdata", { keyPath: "id" });
           // v3: save-state slots and the automatic "이어하기" state, key = romId + ":" + slot
           if (!d.objectStoreNames.contains("states")) d.createObjectStore("states", { keyPath: "key" });
+          // v4: ROM bytes in 16 MB pieces (key = romId + "#" + n), so big ROMs never sit in memory twice
+          if (!d.objectStoreNames.contains("romchunks")) d.createObjectStore("romchunks");
         };
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
@@ -588,18 +590,49 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try { await tx("roms", "readwrite", s => s.put(rec)); return true; }
     catch (e) { memoryRoms.set(rec.id, rec); return false; }
   }
-  async function putRomData(id, bytes) {
-    try { await tx("romdata", "readwrite", s => s.put({ id, bytes })); return true; }
-    catch (e) { memoryData.set(id, bytes); return false; }
+  // Store a picked ROM file piece by piece: only one 16 MB piece is in memory at a time,
+  // so even a 512 MB cartridge (Pokémon Black 2/White 2) can be added.
+  const CHUNK = 16 * 1024 * 1024;
+  const chunkRange = id => IDBKeyRange.bound(id + "#", id + "#\uffff");
+  async function putRomFile(id, file, onProgress) {
+    const n = Math.max(1, Math.ceil(file.size / CHUNK));
+    try {
+      for (let i = 0; i < n; i++) {
+        const buf = await file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK)).arrayBuffer();
+        await tx("romchunks", "readwrite", s => s.put(buf, id + "#" + String(i).padStart(4, "0")));
+        if (onProgress) onProgress((i + 1) / n);
+      }
+      await tx("romdata", "readwrite", s => s.put({ id, chunks: n, size: file.size }));
+      return "ok";
+    } catch (e) {
+      try { await tx("romchunks", "readwrite", s => s.delete(chunkRange(id))); } catch (_) {}
+      if (e && (e.name === "QuotaExceededError" || /quota/i.test(String(e.message)))) return "quota";
+      if (e && e.name === "NotReadableError") return "unreadable";
+      // no usable IndexedDB (private mode etc.): keep it in memory for this session only
+      try { memoryData.set(id, await file.arrayBuffer()); return "memory"; } catch (_) { return "unreadable"; }
+    }
   }
   async function getRom(id) {
     if (memoryRoms.has(id)) return memoryRoms.get(id);
     return tx("roms", "readonly", s => s.get(id));
   }
   // The ROM as bytes. Older entries (V10 and before) kept a Blob on the list record.
+  let onLoadProgress = null;
   async function getRomBytes(rec) {
     if (memoryData.has(rec.id)) return new Uint8Array(memoryData.get(rec.id));
     const row = await tx("romdata", "readonly", s => s.get(rec.id)).catch(() => null);
+    if (row && row.chunks) {
+      // one buffer of the final size, filled piece by piece; the engine then takes it over without copying
+      const out = new Uint8Array(row.size);
+      let off = 0;
+      for (let i = 0; i < row.chunks; i++) {
+        const buf = await tx("romchunks", "readonly", s => s.get(rec.id + "#" + String(i).padStart(4, "0")));
+        if (!buf) throw new Error("missing rom piece " + i);
+        out.set(new Uint8Array(buf), off); off += buf.byteLength;
+        if (onLoadProgress && row.chunks > 4) onLoadProgress((i + 1) / row.chunks);
+      }
+      return out;
+    }
     if (row && row.bytes) return new Uint8Array(row.bytes);
     if (rec.blob) return new Uint8Array(await rec.blob.arrayBuffer());
     throw new Error("no rom data");
@@ -608,6 +641,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     memoryRoms.delete(id); memoryData.delete(id);
     try { await tx("roms", "readwrite", s => s.delete(id)); } catch (e) {}
     try { await tx("romdata", "readwrite", s => s.delete(id)); } catch (e) {}
+    try { await tx("romchunks", "readwrite", s => s.delete(chunkRange(id))); } catch (e) {}
   }
 
   // ---------- NDS header / banner parsing ----------
@@ -827,14 +861,14 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
         fileName: f.name, size: f.size, added: Date.now(), lastPlayed: 0,
         code: info.code, title: info.title, publisher: info.publisher, icon: info.icon
       };
-      // keep a plain copy of the bytes: neither the picked File nor a stored Blob
-      // survives reliably in an iOS home-screen app
-      let bytes;
-      try { bytes = await f.arrayBuffer(); }
-      catch (e) { toast(f.name + "을 읽지 못했어. 파일 앱에서 다시 골라줘"); continue; }
-      const okData = await putRomData(rec.id, bytes);
+      // keep a plain copy of the bytes (neither the picked File nor a stored Blob survives reliably
+      // in an iOS home-screen app), written in pieces so big ROMs fit in memory
+      const big = f.size > 64 * 1024 * 1024;
+      const res = await putRomFile(rec.id, f, big ? p => toast("‘" + (info.title || f.name) + "’ 추가 중… " + Math.round(p * 100) + "%") : null);
+      if (res === "quota") { toast("폰 저장공간이 부족해서 " + f.name + "을 넣지 못했어"); continue; }
+      if (res === "unreadable") { toast(f.name + "을 읽지 못했어. 파일 앱에서 다시 골라줘"); continue; }
       const ok = await putRom(rec);
-      if (!ok || !okData) memOnly = true;
+      if (!ok || res === "memory") memOnly = true;
       added++;
     }
     if (added) toast(memOnly ? "추가함 · 이 브라우저는 저장을 막아서 새로고침하면 사라져" : added + "개 추가함");
@@ -1031,8 +1065,14 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!rec) { toast("롬 정보를 못 찾았어. 다시 추가해줘"); return; }
     // hand the emulator the bytes directly (no blob: URL, which iOS home-screen apps fail to fetch)
     let romBytes;
+    onLoadProgress = p => toast("게임 불러오는 중… " + Math.round(p * 100) + "%");
     try { romBytes = await getRomBytes(rec); }
-    catch (e) { toast("이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)"); return; }
+    catch (e) {
+      toast(e instanceof RangeError ? "메모리가 부족해서 이 롬을 열지 못했어. 다른 앱을 닫고 다시 해봐"
+                                    : "이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)");
+      return;
+    }
+    finally { onLoadProgress = null; }
     current = rec;
     rec.lastPlayed = Date.now();
     putRom(rec);

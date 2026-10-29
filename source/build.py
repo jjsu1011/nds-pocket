@@ -95,6 +95,12 @@ def patched_emulator():
     s = must_replace(s,
         "                        e.target.classList.add(\"ejs_virtualGamepad_button_down\");\n                        this.gameManager.simulateInput(0, value, downValue);",
         "                        e.target.classList.add(\"ejs_virtualGamepad_button_down\");\n                        clearTimeout(button.__upT); button.__downAt = performance.now();\n                        this.gameManager.simulateInput(0, value, downValue);")
+    # 2e) Big ROMs: don't copy the game twice on the way into the engine. The bytes we hand over
+    #     are ours alone, so the engine's file system may take them over as they are.
+    s = must_replace(s, 'this.checkCompression(new Uint8Array(data), this.localization("Decompress Game Data"),',
+                        'this.checkCompression((data instanceof Uint8Array ? data : new Uint8Array(data)), this.localization("Decompress Game Data"),')
+    s = must_replace(s, '                        this.gameManager.FS.writeFile(altName, fileData);',
+                        '                        this.gameManager.FS.writeFile(altName, fileData, { canOwn: true });')
     # 2c) No rewind: ignore any saved "rewindEnabled" and drop it from the ☰ settings menu.
     s = must_replace(s,
         '        this.rewindEnabled = this.preGetSetting("rewindEnabled") === "enabled";',

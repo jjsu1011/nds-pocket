@@ -569,13 +569,15 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
       try {
         // v2: list info in "roms", raw ROM bytes (ArrayBuffer, not Blob) in "romdata".
         // iOS home-screen apps often can't read Blobs back out of IndexedDB.
-        const r = indexedDB.open("nds-pocket", 3);
+        const r = indexedDB.open("nds-pocket", 4);
         r.onupgradeneeded = () => {
           const d = r.result;
           if (!d.objectStoreNames.contains("roms")) d.createObjectStore("roms", { keyPath: "id" });
           if (!d.objectStoreNames.contains("romdata")) d.createObjectStore("romdata", { keyPath: "id" });
           // v3: save-state slots and the automatic "이어하기" state, key = romId + ":" + slot
           if (!d.objectStoreNames.contains("states")) d.createObjectStore("states", { keyPath: "key" });
+          // v4: ROM bytes in 16 MB pieces (key = romId + "#" + n), so big ROMs never sit in memory twice
+          if (!d.objectStoreNames.contains("romchunks")) d.createObjectStore("romchunks");
         };
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
@@ -605,18 +607,49 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     try { await tx("roms", "readwrite", s => s.put(rec)); return true; }
     catch (e) { memoryRoms.set(rec.id, rec); return false; }
   }
-  async function putRomData(id, bytes) {
-    try { await tx("romdata", "readwrite", s => s.put({ id, bytes })); return true; }
-    catch (e) { memoryData.set(id, bytes); return false; }
+  // Store a picked ROM file piece by piece: only one 16 MB piece is in memory at a time,
+  // so even a 512 MB cartridge (Pokémon Black 2/White 2) can be added.
+  const CHUNK = 16 * 1024 * 1024;
+  const chunkRange = id => IDBKeyRange.bound(id + "#", id + "#\uffff");
+  async function putRomFile(id, file, onProgress) {
+    const n = Math.max(1, Math.ceil(file.size / CHUNK));
+    try {
+      for (let i = 0; i < n; i++) {
+        const buf = await file.slice(i * CHUNK, Math.min(file.size, (i + 1) * CHUNK)).arrayBuffer();
+        await tx("romchunks", "readwrite", s => s.put(buf, id + "#" + String(i).padStart(4, "0")));
+        if (onProgress) onProgress((i + 1) / n);
+      }
+      await tx("romdata", "readwrite", s => s.put({ id, chunks: n, size: file.size }));
+      return "ok";
+    } catch (e) {
+      try { await tx("romchunks", "readwrite", s => s.delete(chunkRange(id))); } catch (_) {}
+      if (e && (e.name === "QuotaExceededError" || /quota/i.test(String(e.message)))) return "quota";
+      if (e && e.name === "NotReadableError") return "unreadable";
+      // no usable IndexedDB (private mode etc.): keep it in memory for this session only
+      try { memoryData.set(id, await file.arrayBuffer()); return "memory"; } catch (_) { return "unreadable"; }
+    }
   }
   async function getRom(id) {
     if (memoryRoms.has(id)) return memoryRoms.get(id);
     return tx("roms", "readonly", s => s.get(id));
   }
   // The ROM as bytes. Older entries (V10 and before) kept a Blob on the list record.
+  let onLoadProgress = null;
   async function getRomBytes(rec) {
     if (memoryData.has(rec.id)) return new Uint8Array(memoryData.get(rec.id));
     const row = await tx("romdata", "readonly", s => s.get(rec.id)).catch(() => null);
+    if (row && row.chunks) {
+      // one buffer of the final size, filled piece by piece; the engine then takes it over without copying
+      const out = new Uint8Array(row.size);
+      let off = 0;
+      for (let i = 0; i < row.chunks; i++) {
+        const buf = await tx("romchunks", "readonly", s => s.get(rec.id + "#" + String(i).padStart(4, "0")));
+        if (!buf) throw new Error("missing rom piece " + i);
+        out.set(new Uint8Array(buf), off); off += buf.byteLength;
+        if (onLoadProgress && row.chunks > 4) onLoadProgress((i + 1) / row.chunks);
+      }
+      return out;
+    }
     if (row && row.bytes) return new Uint8Array(row.bytes);
     if (rec.blob) return new Uint8Array(await rec.blob.arrayBuffer());
     throw new Error("no rom data");
@@ -625,6 +658,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     memoryRoms.delete(id); memoryData.delete(id);
     try { await tx("roms", "readwrite", s => s.delete(id)); } catch (e) {}
     try { await tx("romdata", "readwrite", s => s.delete(id)); } catch (e) {}
+    try { await tx("romchunks", "readwrite", s => s.delete(chunkRange(id))); } catch (e) {}
   }
 
   // ---------- NDS header / banner parsing ----------
@@ -844,14 +878,14 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
         fileName: f.name, size: f.size, added: Date.now(), lastPlayed: 0,
         code: info.code, title: info.title, publisher: info.publisher, icon: info.icon
       };
-      // keep a plain copy of the bytes: neither the picked File nor a stored Blob
-      // survives reliably in an iOS home-screen app
-      let bytes;
-      try { bytes = await f.arrayBuffer(); }
-      catch (e) { toast(f.name + "을 읽지 못했어. 파일 앱에서 다시 골라줘"); continue; }
-      const okData = await putRomData(rec.id, bytes);
+      // keep a plain copy of the bytes (neither the picked File nor a stored Blob survives reliably
+      // in an iOS home-screen app), written in pieces so big ROMs fit in memory
+      const big = f.size > 64 * 1024 * 1024;
+      const res = await putRomFile(rec.id, f, big ? p => toast("‘" + (info.title || f.name) + "’ 추가 중… " + Math.round(p * 100) + "%") : null);
+      if (res === "quota") { toast("폰 저장공간이 부족해서 " + f.name + "을 넣지 못했어"); continue; }
+      if (res === "unreadable") { toast(f.name + "을 읽지 못했어. 파일 앱에서 다시 골라줘"); continue; }
       const ok = await putRom(rec);
-      if (!ok || !okData) memOnly = true;
+      if (!ok || res === "memory") memOnly = true;
       added++;
     }
     if (added) toast(memOnly ? "추가함 · 이 브라우저는 저장을 막아서 새로고침하면 사라져" : added + "개 추가함");
@@ -1048,8 +1082,14 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
     if (!rec) { toast("롬 정보를 못 찾았어. 다시 추가해줘"); return; }
     // hand the emulator the bytes directly (no blob: URL, which iOS home-screen apps fail to fetch)
     let romBytes;
+    onLoadProgress = p => toast("게임 불러오는 중… " + Math.round(p * 100) + "%");
     try { romBytes = await getRomBytes(rec); }
-    catch (e) { toast("이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)"); return; }
+    catch (e) {
+      toast(e instanceof RangeError ? "메모리가 부족해서 이 롬을 열지 못했어. 다른 앱을 닫고 다시 해봐"
+                                    : "이 롬은 다시 추가해야 해. ⋯ 메뉴로 삭제하고 롬 추가로 다시 넣어줘 (세이브는 그대로야)");
+      return;
+    }
+    finally { onLoadProgress = null; }
     current = rec;
     rec.lastPlayed = Date.now();
     putRom(rec);
@@ -1827,7 +1867,7 @@ textarea.text-in { font-family: ui-monospace, Menlo, monospace; font-size: 13px;
   }
 
   // ---------- Version, update notice, what's new ----------
-  const VERSION_INFO = {"version": "V25", "changes": {"V25": ["터치 화면·A·B·X·Y·십자키를 톡 짧게 눌러도 놓치지 않게 개선 (손을 빨리 떼도 잠깐은 눌린 걸로 전달해)", "십자키를 키우거나 옮겼을 때 가운데를 눌러도 아래로 눌리던 문제 수정, 방향 판정 여유도 십자키 크기에 맞춰 넓힘"], "V24": ["저사양 모드: 목록 화면의 스위치로 켜고 꺼. 느린 폰에서 끊길 때 켜면 게임 중 10초 자동 저장, 화면 직접 그리기(가로는 엔진 기본 배치로), 멀티스레드, 화면 필터를 꺼. 앱을 벗어나거나 목록으로 나갈 때 저장은 그대로 해"], "V23": ["화면 크기 비율을 15~85%로 넓혔어. 슬라이더를 왼쪽으로 끌면 터치 화면이 게임 화면보다 커져", "화면 바꾸기가 이제 두 화면의 자리를 바꿔 (가로: 터치 화면이 왼쪽, 세로: 터치 화면이 위). 크기는 각자 그대로 따라가", "설정 → 게임 화면 옵션에 '터치 화면과 게임 화면 자리 바꾸기' 스위치, 화면 크기 패널에 '⇄ 자리 바꾸기' 버튼 추가"], "V22": ["세로 모드에서 위 화면 윗부분이 다이내믹 아일랜드(카메라섬)에 가려지던 문제 수정: 게임 화면을 그만큼 아래로 내렸어", "홈 화면 앱에서 게임을 켜도 화면 버튼(십자키·ABXY 등)이 안 나오는 경우가 있던 문제 수정"], "V21": ["멀티스레드 엔진: 홈 화면 앱에서 3D 그리기를 CPU 코어 2개로 나눠서 해 (설정에서 끄면 예전 엔진)"], "V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-29T08:43+09:00"}; // src/version.json + build time
+  const VERSION_INFO = {"version": "V26", "changes": {"V26": ["포켓몬스터 블랙2·화이트2처럼 500MB가 넘는 큰 롬도 추가할 수 있게 바꿨어 (조금씩 나눠서 저장하고, 추가·불러오기 진행률을 보여줘)", "게임을 켤 때 롬이 메모리에 세 벌씩 올라가던 걸 한 벌로 줄였어"], "V25": ["터치 화면·A·B·X·Y·십자키를 톡 짧게 눌러도 놓치지 않게 개선 (손을 빨리 떼도 잠깐은 눌린 걸로 전달해)", "십자키를 키우거나 옮겼을 때 가운데를 눌러도 아래로 눌리던 문제 수정, 방향 판정 여유도 십자키 크기에 맞춰 넓힘"], "V24": ["저사양 모드: 목록 화면의 스위치로 켜고 꺼. 느린 폰에서 끊길 때 켜면 게임 중 10초 자동 저장, 화면 직접 그리기(가로는 엔진 기본 배치로), 멀티스레드, 화면 필터를 꺼. 앱을 벗어나거나 목록으로 나갈 때 저장은 그대로 해"], "V23": ["화면 크기 비율을 15~85%로 넓혔어. 슬라이더를 왼쪽으로 끌면 터치 화면이 게임 화면보다 커져", "화면 바꾸기가 이제 두 화면의 자리를 바꿔 (가로: 터치 화면이 왼쪽, 세로: 터치 화면이 위). 크기는 각자 그대로 따라가", "설정 → 게임 화면 옵션에 '터치 화면과 게임 화면 자리 바꾸기' 스위치, 화면 크기 패널에 '⇄ 자리 바꾸기' 버튼 추가"], "V22": ["세로 모드에서 위 화면 윗부분이 다이내믹 아일랜드(카메라섬)에 가려지던 문제 수정: 게임 화면을 그만큼 아래로 내렸어", "홈 화면 앱에서 게임을 켜도 화면 버튼(십자키·ABXY 등)이 안 나오는 경우가 있던 문제 수정"], "V21": ["멀티스레드 엔진: 홈 화면 앱에서 3D 그리기를 CPU 코어 2개로 나눠서 해 (설정에서 끄면 예전 엔진)"], "V20": ["빨리감기가 화면 새로고침 속도(초당 60~120번)에 묶여서 1~2배 넘게 안 나오던 문제 개선. 이제 폰 성능이 허락하는 만큼 빨라져"], "V19": ["되감기 기능을 뺐어 (설정과 ☰ 메뉴 모두)"], "V18": ["세이브 백업: 설정 → 세이브 백업에서 모든 게임 세이브를 'NDS Pocket 세이브.zip' 한 파일로 내보내. 롬 폴더에 같은 이름으로 대치 저장하면 파일이 늘지 않고, 압축을 풀면 게임별 폴더로 정리돼 있어. 3일 넘게 백업 안 하면 목록에서 알려줘. 게임별 .dsv 내보내기/가져오기는 목록의 ⋯ 메뉴", "이어하기: 게임에서 나가거나 앱을 벗어날 때 자동으로 저장하고, 다음에 켜면 이어할지 물어봐", "저장 슬롯: 상단 바의 저장 버튼으로 5칸에 상태 저장/불러오기. 저장 시각과 화면 사진이 같이 보여", "화면 바꾸기: 위·아래 화면을 맞바꿔서 터치 화면을 크게 볼 수 있어", "화면 필터: 설정에서 픽셀 / 부드럽게 / DS 액정 중에 골라", "화면 크기 패널에 '가로 꽉 채우기' 버튼, 상단 버튼 줄 자동 숨김 (화면 맨 위 가운데를 누르면 다시 나와)", "버튼 이동 패널에 투명도 슬라이더", "블루투스 컨트롤러를 연결하면 화면 버튼을 자동으로 숨겨", "치트 관리: 목록의 ⋯ → 치트에서 게임별로 이름 붙여 추가하고 켜고 꺼", "목록에 게임별 플레이 시간 표시"], "V17": ["화면을 돌릴 때 두 화면 크기와 버튼 위치가 어긋나던 문제 개선: 회전이 끝난 뒤 순서대로 다시 맞춰"], "V16": ["버튼 크기 조절: 상단 바의 버튼 이동을 누르면 L·R, 십자키, A·B·X·Y 크기를 슬라이더로 각각 60~180%로 바꿀 수 있어. 세로/가로 따로 저장돼", "A·B·X·Y는 넷이 같이 커지고 작아져서 키워도 서로 안 겹쳐"], "V15": ["배속할 때 화면 일부가 검게 비거나 깨지던 문제 수정 (프레임 건너뛰기를 없앴어)", "상단 바에 자물쇠 버튼 추가: 잠그면 십자키·ABXY·LR·시작/선택·터치 화면만 남고 나머지 버튼은 숨겨져. 자물쇠를 1초 꾹 누르면 풀려"], "V14": ["버전 정보를 설정 → 앱 정보로 옮겼어. 지금 버전과 서버의 최신 버전을 비교해서 보여주고, 새 버전이 있으면 바로 업데이트할 수 있어", "업데이트할 때 예전 파일을 다시 받아와서 버전이 안 바뀌던 문제 수정"], "V13": ["터치 화면을 누를 때마다 아래 메뉴 바가 올라오던 문제 수정. 메뉴는 오른쪽 위 ☰ 버튼으로 열어", "롬 삭제: 목록의 ⋯ 버튼을 키웠고, 실수 방지로 두 번 눌러야 지워져. 세이브는 남아"], "V12": ["새 버전을 받으면 알려줘. 목록 화면에서는 바로 적용할 수 있고, 게임 중에는 목록으로 나갈 때 적용돼", "업데이트 후 처음 켜면 바뀐 점을 보여줘"], "V11": ["켤 때 \"네트워크 오류\"가 나던 문제 수정 (☰ 설정의 코어 선택 때문이었어. 메뉴는 없앴어)", "롬을 에뮬레이터에 직접 넘겨서 홈 화면 앱에서 더 안정적으로 열려"], "V10": ["▶▶ 배속 버튼: 1x → 2x → 4x → 최대", "☰ 버튼과 메뉴 바를 화면 모서리 안쪽으로 이동"]}, "stamp": "2026-10-29T15:29+09:00"}; // src/version.json + build time
   const APP_VERSION = VERSION_INFO.version;
   const BUILD_STAMP = VERSION_INFO.stamp;
   const CHANGES = VERSION_INFO.changes;

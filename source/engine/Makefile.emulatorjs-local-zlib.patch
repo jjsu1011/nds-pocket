@@ -1,0 +1,13 @@
+--- RetroArch/Makefile.emulatorjs	2026-11-24 11:20:44.624521078 +0900
++++ RetroArch/Makefile.emulatorjs.localzlib	2026-11-24 11:22:07.108524027 +0900
+@@ -131,8 +131,8 @@
+ 
+ EXPORTS := Browser,callMain,cwrap,getValue,HEAPU8,FS,PATH,ERRNO_CODES,AL,abort,ENV,stringToNewUTF8,UTF8ToString,Browser,EmscriptenSendCommand,EmscriptenReceiveCommandReply,EmulatorJSGetState,EmulatorJSGetMemoryData
+ 
+-LIBS   := -s USE_ZLIB=1
+-CFLAGS := -s USE_ZLIB=1
++LIBS   := -L$(ZLIB_DIR) -lz
++CFLAGS := -I$(ZLIB_DIR)
+ 
+ ifeq ($(HAVE_EXTRA_WASMFS), 1)
+    LIBS += -lfetchfs.js -lopfs.js

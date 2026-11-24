@@ -10,7 +10,7 @@ A personal web front-end for a Nintendo DS emulator, made to run on an iPhone as
 
 - `index.html` — the app (library, screen layouts, controls)
 - `ejs/bundle.js` — [EmulatorJS](https://github.com/EmulatorJS/EmulatorJS) 4.2.3 with small patches (loads the engine from this site, no update check)
-- `cores/` — the [DeSmuME](https://github.com/TASEmulators/desmume) 2015 libretro core as built by EmulatorJS (`@emulatorjs/core-desmume2015` 4.2.3), engine binary gzip-compressed
+- `cores/` — the [DeSmuME](https://github.com/TASEmulators/desmume) 2015 libretro core with EmulatorJS's RetroArch front-end, built from source (see `source/engine/README.md` for sources, commits and build steps), engine binary gzip-compressed
 - `source/` — the build scripts and app source used to produce the files above
 - `sw.js`, `manifest.webmanifest`, `icons/` — home-screen install and offline support
 
